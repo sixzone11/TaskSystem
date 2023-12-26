@@ -66,17 +66,39 @@ struct CalcNumTaskManifests<TaskManifestWritten<M, N, B>, TaskManifestList...>		
 template<typename... TaskManifestList>
 struct CalcNumNextTasks;
 
-template<>
-struct CalcNumNextTasks<TaskDefined> { constexpr static const uint32_t value = 1; };
 template<uint32_t M, uint32_t N, uint32_t B>
-struct CalcNumNextTasks<TaskManifestWritten<M,N,B>> { constexpr static const uint32_t value = B; };
+struct CalcNumNextTasks<TaskManifestWritten<M, N, B>> {
+	constexpr static const uint32_t valueInChain = N; // M=1, B=1 -> N=1
+	constexpr static const uint32_t valueInJunction = N;
+};
 
-template<>
-struct CalcNumNextTasks<TaskDefined, TaskDefined> { constexpr static const uint32_t value = 1 + CalcNumNextTasks<TaskDefined>::value; };
-template<uint32_t M, uint32_t N, uint32_t B>
-struct CalcNumNextTasks<TaskDefined, TaskManifestWritten<M, N, B>> { constexpr static const uint32_t value = B + CalcNumNextTasks<TaskManifestWritten<M, N, B>>::value; };
-//template<uint32_t M, uint32_t N, uint32_t B>
-//struct CalcNumNextTasks<TaskManifestWritten<M, N, B>> { constexpr static const uint32_t value = B; };
+//template<>
+//struct CalcNumNextTasks<TaskManifestWritten<1, 1, 1>, TaskManifestWritten<1, 1, 1>> {
+//	constexpr static const uint32_t valueInChain = (1 * 1) + CalcNumNextTasks<TaskManifestWritten<1, 1, 1>>::valueInChain;
+//	constexpr static const uint32_t valueInJunction = 1 + CalcNumNextTasks<TaskManifestWritten<1, 1, 1>>::valueInJunction;
+//};
+//template<uint32_t Mi, uint32_t Ni, uint32_t Bi>
+//struct CalcNumNextTasks<TaskManifestWritten<1, 1, 1>, TaskManifestWritten<Mi, Ni, Bi>> {
+//	constexpr static const uint32_t valueInChain = (1 * Bi) + CalcNumNextTasks<TaskManifestWritten<Mi, Ni, Bi>>::valueInChain;
+//	constexpr static const uint32_t valueInJunction = 1 + CalcNumNextTasks<TaskManifestWritten<Mi, Ni, Bi>>::valueInJunction;
+//};
+//template<uint32_t Mo, uint32_t No, uint32_t Bo>
+//struct CalcNumNextTasks<TaskManifestWritten<Mo, No, Bo>, TaskManifestWritten<1, 1, 1>> {
+//	constexpr static const uint32_t valueInChain = (Bo * 1) + CalcNumNextTasks<TaskManifestWritten<1, 1, 1>>::valueInChain;
+//	constexpr static const uint32_t valueInJunction = No + CalcNumNextTasks<TaskManifestWritten<1, 1, 1>>::valueInJunction;
+//};
+
+template<
+	uint32_t Mo, uint32_t No, uint32_t Bo,
+	uint32_t Mi, uint32_t Ni, uint32_t Bi, typename... TaskManifestList>
+struct CalcNumNextTasks<
+	TaskManifestWritten<Mo, No, Bo>,
+	TaskManifestWritten<Mi, Ni, Bi>, TaskManifestList...>
+{
+	constexpr static const uint32_t valueInChain = (Bo * Bi) + CalcNumNextTasks<TaskManifestWritten<Mi, Ni, Bi>, TaskManifestList...>::valueInChain;
+	constexpr static const uint32_t valueInJunction = No + CalcNumNextTasks<TaskManifestWritten<Mi, Ni, Bi>, TaskManifestList...>::valueInJunction;
+};
+
 
 
 struct TaskManifestWriter
@@ -115,7 +137,7 @@ template<typename... TaskManifestList>
 auto TaskManifestWriter::defineTaskChain(TaskManifestList&&... list)
 {
 	static constexpr uint32_t M = CalcNumTaskManifests<TaskManifestList...>::value;
-	static constexpr uint32_t N = 0;
+	static constexpr uint32_t N = CalcNumNextTasks<TaskManifestList...>::valueInChain;
 	static constexpr uint32_t B = 1;
 	TaskManifestWritten<M, N, B> yetWriting;
 
@@ -157,7 +179,7 @@ template<typename... TaskManifestList>
 auto TaskManifestWriter::defineJunction(TaskManifestList&&... list)
 {
 	static constexpr uint32_t M = CalcNumTaskManifests<TaskManifestList...>::value;
-	static constexpr uint32_t N = 0; // CalcNumNextTasks<TaskManifestList...>::value;
+	static constexpr uint32_t N = CalcNumNextTasks<TaskManifestList...>::valueInJunction;
 	static constexpr uint32_t B = sizeof...(list);
 	TaskManifestWritten<M, N, B> yetWriting;
 

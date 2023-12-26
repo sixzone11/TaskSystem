@@ -44,6 +44,39 @@ static void test()
 {
 	[](uint32_t, uint32_t) { return TaskResult::Succeeded; };
 
+	{
+		auto debug =
+			TaskManifestWriter::defineTaskChain(
+				TaskManifestWriter::defineTask("JunctionTask""1_2", TaskExecution()),
+				TaskManifestWriter::defineTask("JunctionTask""1_2", TaskExecution()),
+				TaskManifestWriter::defineJunction(
+					TaskManifestWriter::defineTaskChain(
+						TaskManifestWriter::defineTask("JunctionTask""1_2", TaskExecution()),
+						TaskManifestWriter::defineJunction(
+							TaskManifestWriter::defineTask("JunctionTask""1_1", TaskExecution()),
+							TaskManifestWriter::defineTask("JunctionTask""2", TaskExecution()))
+					)
+					, TaskManifestWriter::defineTask("JunctionTask""1_1", TaskExecution())
+					, TaskManifestWriter::defineTask("JunctionTask""1_1", TaskExecution())
+				)
+			);
+	}
+
+	{
+		auto debug =
+			TaskManifestWriter::defineJunction(
+				TaskManifestWriter::defineTask("JunctionTask""1_1", TaskExecution()),
+				TaskManifestWriter::defineTask("JunctionTask""1_1", TaskExecution()),
+				TaskManifestWriter::defineTaskChain(
+					TaskManifestWriter::defineTask("JunctionTask""1_2", TaskExecution()),
+
+					TaskManifestWriter::defineJunction(
+						TaskManifestWriter::defineTask("JunctionTask""1_1", TaskExecution()),
+						TaskManifestWriter::defineTask("JunctionTask""2", TaskExecution()))
+				)
+			);
+	}
+
 	auto result = TaskManifestWriter::defineTaskChain(
 		TaskManifestWriter::defineTask("AsyncTask""1", TaskExecution()),
 		TaskManifestWriter::defineJunction(
