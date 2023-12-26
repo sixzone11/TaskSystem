@@ -46,10 +46,10 @@ struct TaskDefined
 	TaskExecutePoint _executePoint = {};
 };
 
-template<uint32_t N>
+template<uint32_t M>
 struct TaskManifestWritten
 {
-	TaskDefined _taskDefined[N];
+	TaskDefined _taskDefined[M];
 };
 
 
@@ -57,12 +57,12 @@ template<typename... TaskManifestList>
 struct CalcNumTaskManifests;
 
 template<>				struct CalcNumTaskManifests<TaskDefined>				{ constexpr static const uint32_t value = 1; };
-template<uint32_t N>	struct CalcNumTaskManifests<TaskManifestWritten<N>>		{ constexpr static const uint32_t value = N; };
+template<uint32_t M>	struct CalcNumTaskManifests<TaskManifestWritten<M>>		{ constexpr static const uint32_t value = M; };
 
 template<typename... TaskManifestList>
 struct CalcNumTaskManifests<TaskDefined, TaskManifestList...>					{ constexpr static const uint32_t value = 1 + CalcNumTaskManifests<TaskManifestList...>::value; };
-template<uint32_t N, typename... TaskManifestList>
-struct CalcNumTaskManifests<TaskManifestWritten<N>, TaskManifestList...>		{ constexpr static const uint32_t value = N + CalcNumTaskManifests<TaskManifestList...>::value; };
+template<uint32_t M, typename... TaskManifestList>
+struct CalcNumTaskManifests<TaskManifestWritten<M>, TaskManifestList...>		{ constexpr static const uint32_t value = M + CalcNumTaskManifests<TaskManifestList...>::value; };
 
 struct TaskManifestWriter
 {
@@ -139,8 +139,8 @@ auto TaskManifestWriter::__defineTaskChain(TaskDefined* yetWriting, TaskManifest
 template<typename... TaskManifestList>
 auto TaskManifestWriter::defineJunction(TaskManifestList&&... list)
 {
-	static constexpr uint32_t N = CalcNumTaskManifests<TaskManifestList...>::value;
-	TaskManifestWritten<N> yetWriting;
+	static constexpr uint32_t M = CalcNumTaskManifests<TaskManifestList...>::value;
+	TaskManifestWritten<M> yetWriting;
 
 	__defineJunction(yetWriting._taskDefined, std::forward<TaskManifestList>(list)...);
 

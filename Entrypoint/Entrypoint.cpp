@@ -74,7 +74,7 @@ static void test()
 	);
 
 	constexpr uint32_t numTasks = sizeof(result._taskDefined) / sizeof(result._taskDefined[0]);
-	std::vector<TaskDesc> taskDescs(numTasks);
+	std::vector<TaskDefined> taskDescs(numTasks);
 	for (uint32_t i = 0; i < numTasks; ++i)
 	{
 		taskDescs[i] = std::move(result._taskDefined[i]);
@@ -84,22 +84,22 @@ static void test()
 int main()
 {
 	//ITaskManager* taskManager = getDefaultTaskManager();
-	//ITaskKey* taskKey = taskManager->createTask(TaskDesc{});
-	//ITaskKey* taskKey2 = taskKey->createNextTask(TaskDesc{});
-	//ITaskKey* taskKey3 = taskKey2->createNextTask(TaskDesc{});
-	//ITaskKey* taskKey4 = taskKey2->createNextTask(TaskDesc{});
-	//ITaskKey* taskKey5 = taskKey4->createNextTask(TaskDesc{});
+	//ITaskKey* taskKey = taskManager->createTask(TaskDefined{});
+	//ITaskKey* taskKey2 = taskKey->createNextTask(TaskDefined{});
+	//ITaskKey* taskKey3 = taskKey2->createNextTask(TaskDefined{});
+	//ITaskKey* taskKey4 = taskKey2->createNextTask(TaskDefined{});
+	//ITaskKey* taskKey5 = taskKey4->createNextTask(TaskDefined{});
 	//
 	//ITaskKey* forkedTaskKey = taskKey5->createNextTask(
-	//	taskManager->createTask(TaskDesc{ "CreateSceneObjects" })
-	//	->createNextTask(TaskDesc{ "LoadDataForAllObjects", loadDataForAllObjects })
-	//	->createNextTask(TaskDesc{ "WaitForGpu", waitForGpuTask })
-	//	->createNextTask(TaskDesc{ "PostLoadingProcess" }),
-	//	taskManager->createTask(TaskDesc{})
-	//	->createNextTask(TaskDesc{})
+	//	taskManager->createTask(TaskDefined{ "CreateSceneObjects" })
+	//	->createNextTask(TaskDefined{ "LoadDataForAllObjects", loadDataForAllObjects })
+	//	->createNextTask(TaskDefined{ "WaitForGpu", waitForGpuTask })
+	//	->createNextTask(TaskDefined{ "PostLoadingProcess" }),
+	//	taskManager->createTask(TaskDefined{})
+	//	->createNextTask(TaskDefined{})
 	//);
 	//
-	//ITaskKey* joinedTaskKey = forkedTaskKey->createNextTask(TaskDesc{ "Finalize" });
+	//ITaskKey* joinedTaskKey = forkedTaskKey->createNextTask(TaskDefined{ "Finalize" });
 	//
 	//taskManager->createTask();
 

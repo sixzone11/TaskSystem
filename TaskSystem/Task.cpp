@@ -7,17 +7,17 @@
 
 struct TaskKeyImpl : public ITaskKey
 {
-	TaskKeyImpl(TaskDesc&& taskDesc) :
+	TaskKeyImpl(TaskDefined&& taskDesc) :
 		_taskDesc(std::move(taskDesc))
 	{
 	}
 
-	ITaskKey* createNextTask(TaskDesc&& taskDesc)
+	ITaskKey* createNextTask(TaskDefined&& taskDesc)
 	{
 		return new TaskKeyImpl(std::move(taskDesc));
 	}
 
-	TaskDesc _taskDesc;
+	TaskDefined _taskDesc;
 };
 
 std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey)
@@ -28,7 +28,7 @@ std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey)
 
 class TaskManagerImpl : public ITaskManager
 {
-	ITaskKey* createTask(TaskDesc&& taskDesc)
+	ITaskKey* createTask(TaskDefined&& taskDesc)
 	{
 		return new TaskKeyImpl(std::move(taskDesc));
 	}
