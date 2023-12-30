@@ -46,57 +46,69 @@ struct TaskDefined
 	TaskExecutePoint _executePoint = {};
 };
 
-template<uint32_t M, uint32_t N, uint32_t B>
+template<uint32_t NumManifests_, uint32_t NumLinks_, uint32_t NumInputs_, uint32_t NumOutputs_>
 struct TaskManifestWritten
 {
-	TaskDefined _taskDefined[M];
+	constexpr static const uint32_t NumManifests = NumManifests_;
+	constexpr static const uint32_t NumLinks = NumLinks_;
+	constexpr static const uint32_t NumInputs = NumInputs_;
+	constexpr static const uint32_t NumOutputs = NumOutputs_;
+
+	TaskDefined _taskDefined[NumManifests];
+	uint32_t _offsets[NumManifests];
+	uint32_t _links[NumLinks];
+	uint32_t _inputs[NumInputs] = {};
+	uint32_t _outputs[NumOutputs] = {};
+	uint32_t _precedingCount[NumManifests + 1] = {};
 };
 
 
 template<typename... TaskManifestList>
 struct CalcNumTaskManifests;
 
-template<uint32_t M, uint32_t N, uint32_t B>
-struct CalcNumTaskManifests<TaskManifestWritten<M, N, B>>							{ constexpr static const uint32_t value = M; };
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+struct CalcNumTaskManifests<TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>>
+{
+	constexpr static const uint32_t value = NumManifests;
 
-template<uint32_t M, uint32_t N, uint32_t B, typename... TaskManifestList>
-struct CalcNumTaskManifests<TaskManifestWritten<M, N, B>, TaskManifestList...>		{ constexpr static const uint32_t value = M + CalcNumTaskManifests<TaskManifestList...>::value; };
+	constexpr static const uint32_t numInputs = NumInputs;
+	constexpr static const uint32_t numOutputs = NumOutputs;
+
+	constexpr static const uint32_t sumInputsInJunction = NumInputs;
+	constexpr static const uint32_t sumOutputsInJunction = NumOutputs;
+};
+
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+struct CalcNumTaskManifests<TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>, TaskManifestList...>
+{
+	constexpr static const uint32_t value = NumManifests + CalcNumTaskManifests<TaskManifestList...>::value;
+
+	constexpr static const uint32_t numInputs = NumInputs;
+	constexpr static const uint32_t numOutputs = CalcNumTaskManifests<TaskManifestList...>::numOutputs;
+
+	constexpr static const uint32_t sumInputsInJunction = NumInputs + CalcNumTaskManifests<TaskManifestList...>::sumInputsInJunction;
+	constexpr static const uint32_t sumOutputsInJunction = NumOutputs + CalcNumTaskManifests<TaskManifestList...>::sumOutputsInJunction;
+};
 
 
 template<typename... TaskManifestList>
 struct CalcNumNextTasks;
 
-template<uint32_t M, uint32_t N, uint32_t B>
-struct CalcNumNextTasks<TaskManifestWritten<M, N, B>> {
-	constexpr static const uint32_t valueInChain = N; // M=1, B=1 -> N=1
-	constexpr static const uint32_t valueInJunction = N;
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+struct CalcNumNextTasks<TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>> {
+	constexpr static const uint32_t valueInChain = NumLinks; // NumManifests=1, NumIn/Out=1 -> NumLinks=1
+	constexpr static const uint32_t valueInJunction = NumLinks;
 };
 
-//template<>
-//struct CalcNumNextTasks<TaskManifestWritten<1, 1, 1>, TaskManifestWritten<1, 1, 1>> {
-//	constexpr static const uint32_t valueInChain = (1 * 1) + CalcNumNextTasks<TaskManifestWritten<1, 1, 1>>::valueInChain;
-//	constexpr static const uint32_t valueInJunction = 1 + CalcNumNextTasks<TaskManifestWritten<1, 1, 1>>::valueInJunction;
-//};
-//template<uint32_t Mi, uint32_t Ni, uint32_t Bi>
-//struct CalcNumNextTasks<TaskManifestWritten<1, 1, 1>, TaskManifestWritten<Mi, Ni, Bi>> {
-//	constexpr static const uint32_t valueInChain = (1 * Bi) + CalcNumNextTasks<TaskManifestWritten<Mi, Ni, Bi>>::valueInChain;
-//	constexpr static const uint32_t valueInJunction = 1 + CalcNumNextTasks<TaskManifestWritten<Mi, Ni, Bi>>::valueInJunction;
-//};
-//template<uint32_t Mo, uint32_t No, uint32_t Bo>
-//struct CalcNumNextTasks<TaskManifestWritten<Mo, No, Bo>, TaskManifestWritten<1, 1, 1>> {
-//	constexpr static const uint32_t valueInChain = (Bo * 1) + CalcNumNextTasks<TaskManifestWritten<1, 1, 1>>::valueInChain;
-//	constexpr static const uint32_t valueInJunction = No + CalcNumNextTasks<TaskManifestWritten<1, 1, 1>>::valueInJunction;
-//};
-
 template<
-	uint32_t Mo, uint32_t No, uint32_t Bo,
-	uint32_t Mi, uint32_t Ni, uint32_t Bi, typename... TaskManifestList>
+	uint32_t NumManifestsCur, uint32_t NumLinksCur, uint32_t NumInputsCur, uint32_t NumOutputsCur,
+	uint32_t NumManifestsNext, uint32_t NumLinksNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, typename... TaskManifestList>
 struct CalcNumNextTasks<
-	TaskManifestWritten<Mo, No, Bo>,
-	TaskManifestWritten<Mi, Ni, Bi>, TaskManifestList...>
+	TaskManifestWritten<NumManifestsCur, NumLinksCur, NumInputsCur, NumOutputsCur>,
+	TaskManifestWritten<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext>, TaskManifestList...>
 {
-	constexpr static const uint32_t valueInChain = (Bo * Bi) + CalcNumNextTasks<TaskManifestWritten<Mi, Ni, Bi>, TaskManifestList...>::valueInChain;
-	constexpr static const uint32_t valueInJunction = No + CalcNumNextTasks<TaskManifestWritten<Mi, Ni, Bi>, TaskManifestList...>::valueInJunction;
+	constexpr static const uint32_t valueInChain = NumLinksCur + (NumOutputsCur * (NumInputsNext - 1)) + CalcNumNextTasks<TaskManifestWritten<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext>, TaskManifestList...>::valueInChain;
+	constexpr static const uint32_t valueInJunction = NumLinksCur + CalcNumNextTasks<TaskManifestWritten<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext>, TaskManifestList...>::valueInJunction;
 };
 
 
@@ -104,126 +116,292 @@ struct CalcNumNextTasks<
 struct TaskManifestWriter
 {
 	template<typename... TaskManifestList>
-	static auto defineTaskChain(TaskManifestList&&... list);
+	constexpr static auto defineTaskChain(TaskManifestList&&... list);
 
 	template<typename... TaskManifestList>
-	static auto defineJunction(TaskManifestList&&... list);
+	constexpr static auto defineJunction(TaskManifestList&&... list);
 
-	static TaskManifestWritten<1, 1, 1> defineTask(const char* taskName, TaskExecution&& execution);
-	static TaskManifestWritten<1, 1, 1> defineTask(const char* taskName, TaskCommitFlag flag, TaskExecution&& execution);
+	constexpr static TaskManifestWritten<1, 1, 1, 1> defineTask(const char* taskName, TaskExecution&& execution);
+	constexpr static TaskManifestWritten<1, 1, 1, 1> defineTask(const char* taskName, TaskCommitFlag flag, TaskExecution&& execution);
 
 private:
-	template<typename... TaskManifestList>
-	static auto __defineTaskChain(TaskDefined* yetWriting, TaskDefined&& taskDefined, TaskManifestList&&... list);
-	static auto __defineTaskChain(TaskDefined* yetWriting, TaskDefined&& taskDefined);
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+	constexpr static auto __defineTaskChain_inputs(uint32_t* inputs, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list);
 
-	template<uint32_t M, uint32_t N, uint32_t B, typename... TaskManifestList>
-	static auto __defineTaskChain(TaskDefined* yetWriting, TaskManifestWritten<M, N, B>&& taskDefined, TaskManifestList&&... list);
-	template<uint32_t M, uint32_t N, uint32_t B>
-	static auto __defineTaskChain(TaskDefined* yetWriting, TaskManifestWritten<M, N, B>&& taskDefined);
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+	constexpr static auto __defineTaskChain_taskDefined(TaskDefined* yetWriting, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list);
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+	constexpr static auto __defineTaskChain_taskDefined(TaskDefined* yetWriting, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined);
+
+	template<
+		uint32_t NumManifestsCur, uint32_t NumLinksCur, uint32_t NumInputsCur, uint32_t NumOutputsCur,
+		uint32_t NumManifestsNext, uint32_t NumLinksNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, typename... TaskManifestList>
+	constexpr static auto __defineTaskChain_links(
+		uint32_t* const offsets, const uint32_t baseOffset, uint32_t* const nexts, const uint32_t startId,
+		TaskManifestWritten<NumManifestsCur, NumLinksCur, NumInputsCur, NumOutputsCur>&& curTaskDefined, TaskManifestWritten<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext>&& nextTaskDefined, TaskManifestList&&... list);
+
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+	constexpr static auto __defineTaskChain_links(
+		uint32_t* const offsets, const uint32_t baseOffset, uint32_t* const nexts, const uint32_t startId,
+		TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined);
+
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+	constexpr static auto __defineTaskChain_outputs(uint32_t* outputs, const uint32_t accumManifests, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list);
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+	constexpr static auto __defineTaskChain_outputs(uint32_t* outputs, const uint32_t accumManifests, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined);
+
+private:
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+	constexpr static auto __defineJunction_inputs(uint32_t* inputs, const uint32_t offset, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list);
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+	constexpr static auto __defineJunction_inputs(uint32_t* inputs, const uint32_t offset, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined);
+
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+	constexpr static auto __defineJunction_taskDefined(TaskDefined* yetWriting, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list);
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+	constexpr static auto __defineJunction_taskDefined(TaskDefined* yetWriting, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined);
 
 
-	template<typename... TaskManifestList>
-	static auto __defineJunction(TaskDefined* yetWriting, TaskDefined&& taskDefined, TaskManifestList&&... list);
-	static auto __defineJunction(TaskDefined* yetWriting, TaskDefined&& taskDefined);
+	template<
+		uint32_t NumManifestsCur, uint32_t NumLinksCur, uint32_t NumInputsCur, uint32_t NumOutputsCur,
+		uint32_t NumManifestsNext, uint32_t NumLinksNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, typename... TaskManifestList>
+	constexpr static auto __defineJunction_links(
+		uint32_t* offsets, const uint32_t baseOffset, uint32_t* nexts, const uint32_t startId,
+		TaskManifestWritten<NumManifestsCur, NumLinksCur, NumInputsCur, NumOutputsCur>&& curTaskDefined, TaskManifestWritten<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext>&& nextTaskDefined, TaskManifestList&&... list);
 
-	template<uint32_t M, uint32_t N, uint32_t B, typename... TaskManifestList>
-	static auto __defineJunction(TaskDefined* yetWriting, TaskManifestWritten<M, N, B>&& taskDefined, TaskManifestList&&... list);
-	template<uint32_t M, uint32_t N, uint32_t B>
-	static auto __defineJunction(TaskDefined* yetWriting, TaskManifestWritten<M, N, B>&& taskDefined);
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+	constexpr static auto __defineJunction_links(
+		uint32_t* offsets, const uint32_t baseOffset, uint32_t* nexts, const uint32_t startId,
+		TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined);
+
+
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+	constexpr static auto __defineJunction_outputs(
+		uint32_t* outputs, const uint32_t accumManifests, uint32_t* offsets, uint32_t* nexts, const uint32_t numManifests,
+		TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList... list);
+
+	template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+	constexpr static auto __defineJunction_outputs(
+		uint32_t* outputs, const uint32_t accumManifests, uint32_t* offsets, uint32_t* nexts, const uint32_t numManifests,
+		TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined);
 };
 
 template<typename... TaskManifestList>
-auto TaskManifestWriter::defineTaskChain(TaskManifestList&&... list)
+constexpr auto TaskManifestWriter::defineTaskChain(TaskManifestList&&... list)
 {
-	static constexpr uint32_t M = CalcNumTaskManifests<TaskManifestList...>::value;
-	static constexpr uint32_t N = CalcNumNextTasks<TaskManifestList...>::valueInChain;
-	static constexpr uint32_t B = 1;
-	TaskManifestWritten<M, N, B> yetWriting;
+	constexpr uint32_t NumManifests = CalcNumTaskManifests<TaskManifestList...>::value;
+	constexpr uint32_t NumLinks = CalcNumNextTasks<TaskManifestList...>::valueInChain;
+	constexpr uint32_t NumInputs = CalcNumTaskManifests<TaskManifestList...>::numInputs;
+	constexpr uint32_t NumOutputs = CalcNumTaskManifests<TaskManifestList...>::numOutputs;
+	TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs> yetWriting;
 
-	__defineTaskChain(yetWriting._taskDefined, std::forward<TaskManifestList>(list)...);
+	__defineTaskChain_inputs(yetWriting._inputs, std::forward<TaskManifestList>(list)...);
+	__defineTaskChain_taskDefined(yetWriting._taskDefined, std::forward<TaskManifestList>(list)...);
+	__defineTaskChain_links(yetWriting._offsets, 0, yetWriting._links, 0, std::forward<TaskManifestList>(list)...);
+	__defineTaskChain_outputs(yetWriting._outputs, 0, std::forward<TaskManifestList>(list)...);
+
+	for (uint32_t i = 0; i < NumLinks; ++i)
+		yetWriting._precedingCount[yetWriting._links[i]]++;
 
 	return yetWriting;
 }
 
-template<typename... TaskManifestList>
-auto TaskManifestWriter::__defineTaskChain(TaskDefined* yetWriting, TaskDefined&& taskDefined, TaskManifestList&&... list)
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+constexpr auto TaskManifestWriter::__defineTaskChain_inputs(uint32_t* inputs, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list)
 {
-	yetWriting[0] = std::forward<TaskDefined>(taskDefined);
-	__defineTaskChain(yetWriting + 1, std::forward<TaskManifestList>(list)...);
+	for (uint32_t i = 0; i < NumInputs; ++i)
+		inputs[i] = taskDefined._inputs[i];
 }
 
-auto TaskManifestWriter::__defineTaskChain(TaskDefined* yetWriting, TaskDefined&& taskDefined)
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+constexpr auto TaskManifestWriter::__defineTaskChain_taskDefined(TaskDefined* yetWriting, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list)
 {
-	yetWriting[0] = std::forward<TaskDefined>(taskDefined);
-}
-
-template<uint32_t M, uint32_t N, uint32_t B, typename... TaskManifestList>
-auto TaskManifestWriter::__defineTaskChain(TaskDefined* yetWriting, TaskManifestWritten<M, N, B>&& taskDefined, TaskManifestList&&... list)
-{
-	for (uint32_t i = 0; i < M; ++i)
+	for (uint32_t i = 0; i < NumManifests; ++i)
 		yetWriting[i] = std::forward<TaskDefined>(taskDefined._taskDefined[i]);
 
-	__defineTaskChain(yetWriting + M, std::forward<TaskManifestList>(list)...);
+	__defineTaskChain_taskDefined(yetWriting + NumManifests, std::forward<TaskManifestList>(list)...);
 }
 
-template<uint32_t M, uint32_t N, uint32_t B>
-auto TaskManifestWriter::__defineTaskChain(TaskDefined* yetWriting, TaskManifestWritten<M, N, B>&& taskDefined)
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+constexpr auto TaskManifestWriter::__defineTaskChain_taskDefined(TaskDefined* yetWriting, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined)
 {
-	for (uint32_t i = 0; i < M; ++i)
+	for (uint32_t i = 0; i < NumManifests; ++i)
 		yetWriting[i] = std::forward<TaskDefined>(taskDefined._taskDefined[i]);
 }
 
+template<
+	uint32_t NumManifestsCur, uint32_t NumLinksCur, uint32_t NumInputsCur, uint32_t NumOutputsCur,
+	uint32_t NumManifestsNext, uint32_t NumLinksNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, typename... TaskManifestList>
+constexpr auto TaskManifestWriter::__defineTaskChain_links(
+	uint32_t* const offsets, const uint32_t baseOffset, uint32_t* const nexts, const uint32_t startId,
+	TaskManifestWritten<NumManifestsCur, NumLinksCur, NumInputsCur, NumOutputsCur>&& curTaskDefined, TaskManifestWritten<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext>&& nextTaskDefined, TaskManifestList&&... list)
+{
+	uint32_t offsetBias[NumManifestsCur];
+	for (uint32_t i = 0, j = 0; i < NumManifestsCur; ++i)
+		offsetBias[i] = (i < curTaskDefined._outputs[j]) ? j : j++;
+
+	for (uint32_t i = 0; i < NumManifestsCur; ++i)
+		offsets[i] = baseOffset + curTaskDefined._offsets[i] + offsetBias[i] * (NumInputsNext - 1);
+
+	uint32_t nextBias[NumLinksCur];
+	for (uint32_t i = 0, j = 0; i < NumLinksCur; ++i)
+		nextBias[i] = (i != curTaskDefined._offsets[curTaskDefined._outputs[j]]) ? 1 : (j++, NumInputsNext);
+
+	for (uint32_t i = 0, j = 0; i < NumLinksCur; ++i)
+	{
+		nexts[j] = startId + curTaskDefined._links[i];
+		j += nextBias[i];
+	}
+
+	for (uint32_t i = 0; i < NumOutputsCur; ++i)
+	{
+		for (uint32_t j = 0; j < NumInputsNext; ++j)
+			nexts[offsets[curTaskDefined._outputs[i]] - baseOffset + j] = startId + NumManifestsCur + nextTaskDefined._inputs[j];
+	}
+
+	// for (uint32_t i = 0, bias = 0; i < NumLinksCur; ++i)
+	// {
+	//     if (curTaskDefined._links[i] != NumOutputsCur)
+	//         nexts[i + bias] = startId + curTaskDefined._links[i];
+	//     else
+	//     {
+	//         for(uint32_t j = 0; j < NumInputsNext; ++j)
+	//             nexts[i + bias + j] = startId + NumManifestsCur + nextTaskDefined._inputs[j];
+
+	//         bias += NumInputsNext - 1;
+	//     }
+	// }
+
+	__defineTaskChain_links(offsets + NumManifestsCur, baseOffset + NumLinksCur + NumOutputsCur * (NumInputsNext - 1),
+		nexts + NumLinksCur + NumOutputsCur * (NumInputsNext - 1), startId + NumManifestsCur, std::forward<TaskManifestWritten<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext>>(nextTaskDefined), std::forward<TaskManifestList>(list)...);
+}
+
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+constexpr auto TaskManifestWriter::__defineTaskChain_links(
+	uint32_t* const offsets, const uint32_t baseOffset, uint32_t* const nexts, const uint32_t startId,
+	TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined)
+{
+	for (uint32_t i = 0; i < NumManifests; ++i)
+		offsets[i] = baseOffset + taskDefined._offsets[i];
+
+	for (uint32_t i = 0; i < NumLinks; ++i)
+		nexts[i] = startId + taskDefined._links[i];
+}
+
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+constexpr auto TaskManifestWriter::__defineTaskChain_outputs(uint32_t* outputs, const uint32_t accumManifests, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list)
+{
+	__defineTaskChain_outputs(outputs, accumManifests + NumManifests, std::forward<TaskManifestList>(list)...);
+}
+
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+constexpr auto TaskManifestWriter::__defineTaskChain_outputs(uint32_t* outputs, const uint32_t accumManifests, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined)
+{
+	for (uint32_t i = 0; i < NumOutputs; ++i)
+		outputs[i] = accumManifests + i;
+}
+
 
 template<typename... TaskManifestList>
-auto TaskManifestWriter::defineJunction(TaskManifestList&&... list)
+constexpr auto TaskManifestWriter::defineJunction(TaskManifestList&&... list)
 {
-	static constexpr uint32_t M = CalcNumTaskManifests<TaskManifestList...>::value;
-	static constexpr uint32_t N = CalcNumNextTasks<TaskManifestList...>::valueInJunction;
-	static constexpr uint32_t B = sizeof...(list);
-	TaskManifestWritten<M, N, B> yetWriting;
+	constexpr uint32_t NumManifests = CalcNumTaskManifests<TaskManifestList...>::value;
+	constexpr uint32_t NumLinks = CalcNumNextTasks<TaskManifestList...>::valueInJunction;
+	constexpr uint32_t NumInputs = CalcNumTaskManifests<TaskManifestList...>::sumInputsInJunction;
+	constexpr uint32_t NumOutputs = CalcNumTaskManifests<TaskManifestList...>::sumOutputsInJunction;
+	TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs> yetWriting;
 
-	__defineJunction(yetWriting._taskDefined, std::forward<TaskManifestList>(list)...);
+	__defineJunction_inputs(yetWriting._inputs, 0, std::forward<TaskManifestList>(list)...);
+	__defineJunction_taskDefined(yetWriting._taskDefined, std::forward<TaskManifestList>(list)...);
+	__defineJunction_links(yetWriting._offsets, 0, yetWriting._links, 0, std::forward<TaskManifestList>(list)...);
+	__defineJunction_outputs(yetWriting._outputs, 0, yetWriting._offsets, yetWriting._links, NumManifests, std::forward<TaskManifestList>(list)...);
+
+	for (uint32_t i = 0; i < NumLinks; ++i)
+		yetWriting._precedingCount[yetWriting._links[i]]++;
 
 	return yetWriting;
 }
 
-template<typename... TaskManifestList>
-auto TaskManifestWriter::__defineJunction(TaskDefined* yetWriting, TaskDefined&& taskDefined, TaskManifestList&&... list)
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+constexpr auto TaskManifestWriter::__defineJunction_inputs(uint32_t* inputs, const uint32_t offset, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined)
 {
-	yetWriting[0] = std::forward<TaskDefined>(taskDefined);
-	__defineJunction(yetWriting + 1, std::forward<TaskManifestList>(list)...);
+	for (uint32_t i = 0; i < NumInputs; ++i)
+		inputs[i] = offset + taskDefined._inputs[i];
 }
 
-auto TaskManifestWriter::__defineJunction(TaskDefined* yetWriting, TaskDefined&& taskDefined)
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+constexpr auto TaskManifestWriter::__defineJunction_inputs(uint32_t* inputs, const uint32_t offset, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list)
 {
-	yetWriting[0] = std::forward<TaskDefined>(taskDefined);
+	__defineJunction_inputs(inputs, offset, std::forward<TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>>(taskDefined));
+	__defineJunction_inputs(inputs + NumInputs, offset + NumManifests, std::forward<TaskManifestList>(list)...);
 }
 
-template<uint32_t M, uint32_t N, uint32_t B, typename... TaskManifestList>
-auto TaskManifestWriter::__defineJunction(TaskDefined* yetWriting, TaskManifestWritten<M, N, B>&& taskDefined, TaskManifestList&&... list)
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+constexpr auto TaskManifestWriter::__defineJunction_taskDefined(TaskDefined* yetWriting, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined)
 {
-	for (uint32_t i = 0; i < M; ++i)
-		yetWriting[i] = std::forward<TaskDefined>(taskDefined._taskDefined[i]);
-
-	__defineJunction(yetWriting + M, std::forward<TaskManifestList>(list)...);
-}
-
-template<uint32_t M, uint32_t N, uint32_t B>
-auto TaskManifestWriter::__defineJunction(TaskDefined* yetWriting, TaskManifestWritten<M, N, B>&& taskDefined)
-{
-	for (uint32_t i = 0; i < M; ++i)
+	for (uint32_t i = 0; i < NumManifests; ++i)
 		yetWriting[i] = std::forward<TaskDefined>(taskDefined._taskDefined[i]);
 }
 
-TaskManifestWritten<1, 1, 1> TaskManifestWriter::defineTask(const char* taskName, TaskExecution&& execution)
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+constexpr auto TaskManifestWriter::__defineJunction_taskDefined(TaskDefined* yetWriting, TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList&&... list)
 {
-	return TaskManifestWritten<1, 1, 1>{ TaskDefined{ taskName, /*move(execution)*/ } };
+	__defineJunction_taskDefined(yetWriting, std::forward<TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>>(taskDefined));
+	__defineJunction_taskDefined(yetWriting + NumManifests, std::forward<TaskManifestList>(list)...);
 }
 
-TaskManifestWritten<1, 1, 1> TaskManifestWriter::defineTask(const char* taskName, TaskCommitFlag flag, TaskExecution&& execution)
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+constexpr auto TaskManifestWriter::__defineJunction_links(
+	uint32_t* offsets, const uint32_t baseOffset, uint32_t* nexts, const uint32_t startId,
+	TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined)
 {
-	return TaskManifestWritten<1, 1, 1>{ TaskDefined{ taskName, /*move(execution)*/ } };
+	for (uint32_t i = 0; i < NumManifests; ++i)
+		offsets[i] = baseOffset + taskDefined._offsets[i];
+
+	for (uint32_t i = 0; i < NumLinks; ++i)
+		nexts[i] = startId + taskDefined._links[i];
+}
+
+template<
+	uint32_t NumManifestsCur, uint32_t NumLinksCur, uint32_t NumInputsCur, uint32_t NumOutputsCur,
+	uint32_t NumManifestsNext, uint32_t NumLinksNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, typename... TaskManifestList>
+constexpr auto TaskManifestWriter::__defineJunction_links(
+	uint32_t* offsets, const uint32_t baseOffset, uint32_t* nexts, const uint32_t startId,
+	TaskManifestWritten<NumManifestsCur, NumLinksCur, NumInputsCur, NumOutputsCur>&& curTaskDefined, TaskManifestWritten<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext>&& nextTaskDefined, TaskManifestList&&... list)
+{
+	__defineJunction_links(offsets, baseOffset, nexts, startId, std::forward<TaskManifestWritten<NumManifestsCur, NumLinksCur, NumInputsCur, NumOutputsCur>>(curTaskDefined));
+	__defineJunction_links(offsets + NumManifestsCur, baseOffset + NumLinksCur, nexts + NumLinksCur, startId + NumManifestsCur, std::forward<TaskManifestWritten<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext>>(nextTaskDefined), std::forward<TaskManifestList>(list)...);
+}
+
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs>
+constexpr auto TaskManifestWriter::__defineJunction_outputs(
+	uint32_t* outputs, const uint32_t accumManifests, uint32_t* offsets, uint32_t* nexts, const uint32_t numManifests,
+	TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined)
+{
+	for (uint32_t i = 0; i < NumOutputs; ++i)
+		outputs[i] = accumManifests + taskDefined._outputs[i];
+
+	for (uint32_t i = 0; i < NumOutputs; ++i)
+		nexts[offsets[outputs[i]]] = numManifests;
+}
+
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... TaskManifestList>
+constexpr auto TaskManifestWriter::__defineJunction_outputs(
+	uint32_t* outputs, const uint32_t accumManifests, uint32_t* offsets, uint32_t* nexts, const uint32_t numManifests,
+	TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>&& taskDefined, TaskManifestList... list)
+{
+	__defineJunction_outputs(outputs, accumManifests, offsets, nexts, numManifests, std::forward<TaskManifestWritten<NumManifests, NumLinks, NumInputs, NumOutputs>>(taskDefined));
+	__defineJunction_outputs(outputs + NumOutputs, accumManifests + NumManifests, offsets, nexts, numManifests, std::forward<TaskManifestList>(list)...);
+}
+
+constexpr TaskManifestWritten<1, 1, 1, 1> TaskManifestWriter::defineTask(const char* taskName, TaskExecution&& execution)
+{
+	return TaskManifestWritten<1, 1, 1, 1>{ TaskDefined{ taskName, /*move(execution)*/ }, {}, { 1 }, {}, {} };
+}
+
+constexpr TaskManifestWritten<1, 1, 1, 1> TaskManifestWriter::defineTask(const char* taskName, TaskCommitFlag flag, TaskExecution&& execution)
+{
+	return TaskManifestWritten<1, 1, 1, 1>{ TaskDefined{ taskName, /*move(execution)*/ }, {}, { 1 }, {}, {} };
 }
 
 
