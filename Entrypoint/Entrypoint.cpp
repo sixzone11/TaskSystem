@@ -1,3 +1,4 @@
+#include "pch.h"
 // Entrypoint.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
@@ -34,15 +35,15 @@ struct TextureLoadDesc
 //	return TaskResult::Succeeded;
 //};
 
-auto waitForGpuTask = [](uint32_t, uint32_t) {
-
-	return TaskResult::Succeeded;
-};
+//auto waitForGpuTask = [](uint32_t, uint32_t) {
+//
+//	return TaskResult::Succeeded;
+//};
 
 
 static void test()
 {
-	[](uint32_t, uint32_t) { return TaskResult::Succeeded; };
+	//[](uint32_t, uint32_t) { return TaskResult::Succeeded; };
 
 	{
 		auto debug =
@@ -114,6 +115,8 @@ static void test()
 	}
 }
 
+void test2();
+
 int main()
 {
 	//ITaskManager* taskManager = getDefaultTaskManager();
@@ -145,6 +148,7 @@ int main()
 	//std::cout << *taskKey << std::endl;
 
 	test();
+	test2();
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
