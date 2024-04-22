@@ -3,18 +3,18 @@
 
 using namespace std;
 
-struct Bindingslot
+struct BindingSlot
 {
 	template<typename T> operator T && () const;
 	template<typename T> operator T& () const;
 };
 
-template<typename T>	struct isBindingSlot : false_type {};
-template<>				struct isBindingSlot<Bindingslot> : true_type {};
+template<typename T>	struct is_binding_slot : false_type {};
+template<>				struct is_binding_slot<BindingSlot> : true_type {};
 
 
 template<typename T>
-constexpr bool isBindingSlotV = isBindingSlot<T>::value;
+constexpr bool is_binding_slot_v = is_binding_slot<T>::value;
 
 struct pseudo_void {};
 
@@ -33,17 +33,39 @@ struct CallableInternalTypes<Ret(*)(Params...)>
 	using OriginalSignature = CallableSignature<Ret(*)(Params...), Ret, Params...>;
 };
 
+template<size_t Index, typename SlotIdxSeq, typename Tuple>
+struct select_binding_slots;
+
+template<typename Tuple>
+struct SelectBindingSlots : select_binding_slots<0, index_sequence<>, Tuple> {};
+
+#define CurrentIndexSequence conditional_t<is_binding_slot_v<remove_reference_t<Arg>>, index_sequence<Indices..., Index>, index_sequence<Indices...>>
+
+template<size_t Index, size_t... Indices, typename Arg, typename... Args>
+struct select_binding_slots<Index, index_sequence<Indices...>, tuple<Arg, Args...>> : select_binding_slots<Index + 1, CurrentIndexSequence, tuple<Args...>> {};
+
+template<size_t Index, size_t... Indices, typename Arg>
+struct select_binding_slots<Index, index_sequence<Indices...>, tuple<Arg>>
+{
+	using ReturnIndexSequence = CurrentIndexSequence;
+};
+
+template<size_t Index, size_t... Indices>
+struct select_binding_slots<Index, index_sequence<Indices...>, tuple<>>
+{
+	using ReturnIndexSequence = index_sequence<Indices...>;
+};
+
 template<typename Callable, typename Ret, typename... Params>
 struct CallableSignature
 {
-	using CallableTuple = tuple<Callable, Ret, tuple<Params...>>;
-
-	using CallableType = Callable;
 	using RetType = typename CallableInternalTypes<Callable>::RetType;
 	using ParamTypeTuple = tuple<Params...>;
 
 	using OriginalSignature = typename CallableInternalTypes<Callable>::OriginalSignature;
 	auto getOriginalSignature() { return OriginalSignature{}; }
+
+	using BindingSlotIndexSequence = typename SelectBindingSlots<ParamTypeTuple>::ReturnIndexSequence;
 };
 
 template<typename Func>
@@ -66,30 +88,17 @@ auto mapTuple(Tuple&& t, index_sequence<Seqs...>) {
 	return std::make_tuple(std::get<Seqs>(t)...);
 }
 
-template<size_t ArgIndex, typename ParamTypeTupleT, typename OriginalTypeTupleT, typename ReturnTypeTupleT>
+template<typename OriginalTypeTupleT, typename ReturnTypeTupleT>
 struct BindingSlotTypeChecker;
 
-template<size_t ArgIndex, typename ParamTypeTupleT, typename OriginalTypeTupleT, typename Arg, typename... Args>
-struct BindingSlotTypeChecker<ArgIndex, ParamTypeTupleT, OriginalTypeTupleT, tuple<Arg, Args...>>
+template<typename... ArgsOriginal, typename... ArgsGiven>
+struct BindingSlotTypeChecker<tuple<ArgsOriginal...>, tuple<ArgsGiven...>>
 {
 	constexpr static bool check()
 	{
-		static_assert(ArgIndex < tuple_size_v<ParamTypeTupleT>, "Argument tuple size is wrong.");
-
-		constexpr bool foundBindingSlot = isBindingSlotV<tuple_element_t<ArgIndex, ParamTypeTupleT>>;
-		constexpr bool matched = conditional_t<foundBindingSlot,
-			is_same<tuple_element_t<ArgIndex, OriginalTypeTupleT>, Arg>,
-			true_type>::value;
-
-		static_assert(matched, "Argument type is mismatched.");
-
-		if constexpr (ArgIndex < tuple_size_v<ParamTypeTupleT>)
-		{
-			if constexpr (foundBindingSlot)
-				return BindingSlotTypeChecker<ArgIndex + 1, ParamTypeTupleT, OriginalTypeTupleT, tuple<Args...>>::check();
-			else
-				return BindingSlotTypeChecker<ArgIndex + 1, ParamTypeTupleT, OriginalTypeTupleT, tuple<Arg, Args...>>::check();
-		}
+		static_assert(sizeof...(ArgsOriginal) == sizeof...(ArgsGiven), "Argument tuple size is wrong.");
+		static_assert(sizeof...(ArgsOriginal) == 0 || (is_same_v<ArgsOriginal, ArgsGiven> && ...), "Arg");
+		return true;
 	}
 };
 
@@ -115,12 +124,13 @@ struct CallableInfo<ReturnTypeTupleT, CallableSignatureT, CallableSignatureTs...
 template<typename ReturnTypeTupleT, typename CallableSignatureT, size_t... Seqs>
 struct CallableInfo<ReturnTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
 {
-	//CallableSignatureT: :ParamTypeTuple* //tuple_element_t<Seqs, ReturnTypeTupleT>;
 	using OrderedReturnTypeTupleT = decltype(mapTuple(ReturnTypeTupleT{}, index_sequence<Seqs...>{}));
+	using OrderedBindingSlotTypeTupleT = decltype(mapTuple(typename CallableSignatureT::OriginalSignature::ParamTypeTuple{}, typename CallableSignatureT::BindingSlotIndexSequence{}));
 	//tuple<tuple_element<Seqs..., ReturnTypeTupleT>>::type>;
 	CallableInfo()
 	{
-		BindingSlotTypeChecker<0, typename CallableSignatureT::ParamTypeTuple, typename CallableSignatureT::OriginalSignature::ParamTypeTuple, OrderedReturnTypeTupleT>::check();
+		//BindingSlotTypeChecker<0, typename CallableSignatureT::ParamTypeTuple, typename CallableSignatureT::OriginalSignature::ParamTypeTuple, OrderedReturnTypeTupleT>::check();
+		BindingSlotTypeChecker<OrderedBindingSlotTypeTupleT, OrderedReturnTypeTupleT>::check();
 	}
 
 	using ReturnTypeTuple = CurrentReturnTypeTuple;
@@ -139,19 +149,18 @@ auto makeCallableInfo(CallableSignatures&&... signatures)
 	return CallableInfo<tuple<>, remove_reference_t<decltype(signatures)>...>{};
 }
 
-
-
 int testIntRet() { return 0; }
-void testVoidRet(int) {}
-
+float testFloatRet() { return 2.f; }
+void testVoidRet(int, float) {}
 
 void tes2222t()
 {
+	auto callableSignature0 = makeCallableSignature(testFloatRet);
 	auto callableSignature1 = makeCallableSignature(testIntRet);
 	auto callableSignature2 = makeCallableSignature(testVoidRet);
-	auto callableSignature2_binding = makeCallableSignature(testVoidRet, Bindingslot());
+	auto callableSignature2_binding = makeCallableSignature(testVoidRet, BindingSlot(), BindingSlot());
 	auto callableSignature2_pure = callableSignature2_binding.getOriginalSignature();
 
 	auto callableInfo1 = makeCallableInfo(callableSignature1, callableSignature2);
-	auto callableInfo2 = makeCallableInfo(callableSignature1, callableSignature2_binding, index_sequence<0>{});
+	auto callableInfo2 = makeCallableInfo(callableSignature0, callableSignature1, makeCallableSignature(testVoidRet, BindingSlot(), BindingSlot()), index_sequence<1, 0>{});
 }
