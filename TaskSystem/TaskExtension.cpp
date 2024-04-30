@@ -222,18 +222,6 @@ struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 {
 	static_assert(is_same_v<typename CallableSignatureT::KeyType, BindingKey_None> ||
 		tuple_size_v<KeyTypeTupleT> == 0 ||
-		find_type_in_tuple<typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == -1ull, "Failed to makeCallableInfo since key is duplicated.");
-
-	using ReturnTypeTuple = CurrentReturnTypeTuple;
-	using KeyTypeTuple = CurrentKeyTypeTuple;
-};
-
-template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... CallableSignatureTs>
-struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, CallableSignatureTs...>
-	: CallableInfo<CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...>
-{
-	static_assert(is_same_v<typename CallableSignatureT::KeyType, BindingKey_None> ||
-		tuple_size_v<KeyTypeTupleT> == 0 ||
 		find_type_in_tuple<typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == ~0ull, "Failed to makeCallableInfo since key is duplicated.");
 
 	using ReturnTypeTuple = CurrentReturnTypeTuple;
@@ -242,11 +230,8 @@ struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, Callabl
 
 template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs>
 struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
+	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 {
-	static_assert(is_same_v<typename CallableSignatureT::KeyType, BindingKey_None> ||
-		tuple_size_v<KeyTypeTupleT> == 0 ||
-		find_type_in_tuple<typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == ~0ull, "Failed to makeCallableInfo since key is duplicated.");
-
 	using OrderedReturnTypeTupleT = decltype(mapTuple(ReturnTypeTupleT{}, index_sequence<Seqs...>{}));
 	using OrderedBindingSlotTypeTupleT = decltype(mapTuple(typename CallableSignatureT::ParamTypeTuple{}, typename CallableSignatureT::BindingSlotIndexSequence{}));
 	//tuple<tuple_element<Seqs..., ReturnTypeTupleT>>::type>;
@@ -255,26 +240,25 @@ struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_s
 		//BindingSlotTypeChecker<0, typename CallableSignatureT::ParamTypeTuple, typename CallableSignatureT::OriginalSignature::ParamTypeTuple, OrderedReturnTypeTupleT>::check();
 		BindingSlotTypeChecker<OrderedBindingSlotTypeTupleT, OrderedReturnTypeTupleT>::check();
 	}
-
-	using ReturnTypeTuple = CurrentReturnTypeTuple;
-	using KeyTypeTuple = CurrentKeyTypeTuple;
 };
 
 template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs>
 struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, tuple<KeyTs...>>
 	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, tuple<KeyTs...>>::FoundIndexTuple> {};
 
+template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... CallableSignatureTs>
+struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, CallableSignatureTs...>
+	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
+	, CallableInfo<CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...> {};
+
 template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs, typename... CallableSignatureTs>
 struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>, CallableSignatureTs...>
-	: CallableInfo<CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...>
-{
-	static_assert(is_same_v<typename CallableSignatureT::KeyType, BindingKey_None> ||
-		tuple_size_v<KeyTypeTupleT> == 0 ||
-		find_type_in_tuple<typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == -1ull, "Failed to makeCallableInfo since key is duplicated.");
+	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
+	, CallableInfo<CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...> {};
 
-	using ReturnTypeTuple = CurrentReturnTypeTuple;
-	using KeyTypeTuple = CurrentKeyTypeTuple;
-};
+template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs, typename... CallableSignatureTs>
+struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, tuple<KeyTs...>, CallableSignatureTs...>
+	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, tuple<KeyTs...>>::FoundIndexTuple, CallableSignatureTs...> {};
 
 ///////////////////////////////////////////////////////////////////////
 // makeCallableInfo utility
@@ -295,6 +279,9 @@ auto makeCallableInfo(CallableSignatures&&... signatures)
 int testIntRet() { return 0; }
 float testFloatRet() { return 2.f; }
 void testVoidRet(int, float) {}
+double test3(int, float) { return 3.5; }
+void test4(float) {}
+int test5(int, double) { return 9; }
 
 namespace KeyA {
 	struct First : BindingKey {};
@@ -312,6 +299,9 @@ void tes2222t()
 	auto callableSignature2 = makeCallableSignature(testVoidRet);
 	auto callableSignature2_binding = makeCallableSignature(testVoidRet, BindingSlot(), BindingSlot());
 	auto callableSignature2_pure = callableSignature2_binding.getOriginalSignature();
+	auto callableSignature3_binding = makeCallableSignature<KeyA::Second>(test3, BindingSlot(), BindingSlot());
+	auto callableSignature4_binding = makeCallableSignature(test4, BindingSlot());
+	auto callableSignature5_binding = makeCallableSignature<KeyA::Third>(test5, 3, BindingSlot());
 
 	auto callableInfo1 = makeCallableInfo(
 		callableSignature0,
@@ -328,5 +318,8 @@ void tes2222t()
 	auto callableInfo3 = makeCallableInfo(
 		callableSignature1,
 		callableSignature0,
-		callableSignature2_binding, tuple<SampleKey, KeyA::First>{});
+		callableSignature4_binding, tuple<KeyA::First>{},
+		callableSignature3_binding, tuple<SampleKey, KeyA::First>{},
+		callableSignature2_binding, tuple<SampleKey, KeyA::First>{},
+		callableSignature5_binding, tuple<KeyA::Second>{});
 }
