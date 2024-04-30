@@ -24,6 +24,8 @@ constexpr bool is_binding_slot_v = is_binding_slot<T>::value;
 struct BindingKey {};
 struct BindingKey_None : BindingKey {};
 
+#define BindingKeys(Key, ...) tuple<Key, __VA_ARGS__>{}
+
 ///////////////////////////////////////////////////////////////////////
 // pseudo_void
 
@@ -289,8 +291,6 @@ namespace KeyA {
 	struct Third : BindingKey {};
 }
 
-
-
 void tes2222t()
 {
 	struct SampleKey : BindingKey {};
@@ -318,8 +318,8 @@ void tes2222t()
 	auto callableInfo3 = makeCallableInfo(
 		callableSignature1,
 		callableSignature0,
-		callableSignature4_binding, tuple<KeyA::First>{},
-		callableSignature3_binding, tuple<SampleKey, KeyA::First>{},
-		callableSignature2_binding, tuple<SampleKey, KeyA::First>{},
-		callableSignature5_binding, tuple<KeyA::Second>{});
+		callableSignature4_binding, BindingKeys(KeyA::First),
+		callableSignature3_binding, BindingKeys(SampleKey, KeyA::First),
+		callableSignature2_binding, BindingKeys(SampleKey, KeyA::First),
+		callableSignature5_binding, BindingKeys(KeyA::Second));
 }
