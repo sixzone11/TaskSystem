@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 
 #include "TaskSystem/TaskSystem.h"
 
@@ -182,7 +182,8 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 
 	};
 
-	auto resultedValue = result(MemberFunctionTest::MemberFunctionA);
+	// Lambda 에 대한 FutureResult를 만들어내는데에 함수를 적용하면 문제가 있으므로 우회시켜야 함.
+	//auto resultedValue = result(&MemberFunctionTest::MemberFunctionA);
 
 	lambda_details<decltype(testLambda)>::minimum_argument_count;
 	//decltype(std::declval<decltype(testLambda)>()((void)0, any_argument{}), void());
