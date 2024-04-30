@@ -177,13 +177,13 @@ auto makeCallableSignature(Ret(*f)(Params...), Args...)
 	return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Args...> {};
 }
 
-template<typename Key, typename Ret, typename... Params>
+template<typename Key, typename Ret, typename... Params, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
 auto makeCallableSignature(Ret(*f)(Params...))
 {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {};
 }
 
-template<typename Key, typename Ret, typename... Params, typename... Args>
+template<typename Key, typename Ret, typename... Params, typename... Args, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
 auto makeCallableSignature(Ret(*f)(Params...), Args...)
 {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {};
