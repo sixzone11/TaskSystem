@@ -136,16 +136,27 @@ struct FutureResult
 	}
 };
 
+template<>
+struct FutureResult<void>
+{
+};
+
 template<typename RetType, typename ... ParamTypes>
 FutureResult<RetType> getFutureResult(RetType(*func)(ParamTypes...))
 {
 	return FutureResult<RetType>();
 };
 
-template<typename T>
-auto getFutureResult(T&& arg)
+template<typename Type, typename RetType, typename ... ParamTypes>
+FutureResult<RetType> getFutureResult(RetType(Type::*func)(ParamTypes...))
 {
-	return FutureResult<typename lambda_details<T>::RetType>();
+	return FutureResult<RetType>();
+};
+
+template<typename Lambda, typename = std::enable_if_t<!std::is_pointer_v<Lambda> && !std::is_function_v<Lambda>>>
+auto getFutureResult(Lambda&& arg)
+{
+	return FutureResult<typename lambda_details<Lambda>::RetType>();
 }
 
 template<typename PrevFunc>
@@ -176,15 +187,11 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 		bool func(const char*) { return false; }
 	};
 
+	auto resultBool = result(&Test::func);
+
 	//auto testLambda = [result(allocateMemory)]()
-	auto testLambda = [filePath]()
-	{
-
-	};
-
-	// Lambda 에 대한 FutureResult를 만들어내는데에 함수를 적용하면 문제가 있으므로 우회시켜야 함.
-	//auto resultedValue = result(&MemberFunctionTest::MemberFunctionA);
-
+	auto testLambda = [filePath]() {};
+	auto resultVoid = result(testLambda);
 	lambda_details<decltype(testLambda)>::minimum_argument_count;
 	//decltype(std::declval<decltype(testLambda)>()((void)0, any_argument{}), void());
 
