@@ -153,10 +153,10 @@ FutureResult<RetType> getFutureResult(RetType(Type::*func)(ParamTypes...))
 	return FutureResult<RetType>();
 };
 
-template<typename Lambda, typename = std::enable_if_t<!std::is_pointer_v<Lambda> && !std::is_function_v<Lambda>>>
-auto getFutureResult(Lambda&& arg)
+template<typename Callable, typename = std::enable_if_t<std::is_class_v<std::remove_reference_t<Callable>>>>
+auto getFutureResult(Callable&& arg)
 {
-	return FutureResult<typename lambda_details<Lambda>::RetType>();
+	return FutureResult<typename lambda_details<Callable>::RetType>();
 }
 
 template<typename PrevFunc>
@@ -171,36 +171,43 @@ auto delayed()
 	return std::make_tuple(ResultHolder{}, std::array<ResultHolder, sizeof...(Index)> {});
 }
 
-bool testMultiParameters(const char*, int, bool, float) { return false; }
-
 struct MemberFunctionTest
 {
 	uint32_t MemberFunctionA() { return 0; }
 };
 
-std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
+// result() 정리
+void resultTest(const char* arg)
 {
-	std::function<decltype(isExist)> a;
-
-	struct Test
+	// Member Function Test
+	struct MemberFunctionTest
 	{
 		bool func(const char*) { return false; }
 	};
+	auto resultBoolOfMemberFunctionTest = result(&MemberFunctionTest::func);
 
-	auto resultBool = result(&Test::func);
+	// Functor Test
+	//	result() 를 통해 선택 시 더 인자가 적은 operator()가 선택됨
+	struct FunctorTest
+	{
+		int operator()(double, double, double) { return true; }
+		bool operator()(const char*, int) { return true; }
+	} functorTest;
+	auto resultVoidOfFunctorTest = result(functorTest);
 
-	//auto testLambda = [result(allocateMemory)]()
-	auto testLambda = [filePath]() {};
-	auto resultVoid = result(testLambda);
-	lambda_details<decltype(testLambda)>::minimum_argument_count;
-	//decltype(std::declval<decltype(testLambda)>()((void)0, any_argument{}), void());
+	// Lambda Test
+	//	Lambda는 곧 unnamed functor이므로 클래스로써 식별, functor test와 같음.
+	auto lambdaTest = [arg]() {};
+	auto resultVoidOfLambdaTest = result(lambdaTest);
 
+}
+
+std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
+{
 	Task(readFile, result(openFile), result(allocateMemory), result(getSize));
 
 	if (isExist(filePath) == false)
 		return std::vector<char>();
-
-	auto delayedValue = delayed<0, 1>();
 
 	Chain(
 		Task(isExist, filePath),
