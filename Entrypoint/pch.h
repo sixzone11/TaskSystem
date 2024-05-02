@@ -662,40 +662,16 @@ private:
 	constexpr static const uint32_t IndexTaskDefine = 0;
 	constexpr static const uint32_t IndexTaskMeta = 1;
 
-
-	template<uint32_t Index, typename Task, typename... TaskList_>
-	struct __SeparateTaskList
-	{
-		constexpr static const auto _var = std::tuple_cat(std::make_tuple(typename std::tuple_element<Index, Task>::type{}), __SeparateTaskList<Index, TaskList_...>::_var);
-	};
-
-	template<uint32_t Index, typename Task>
-	struct __SeparateTaskList<Index, Task>
-	{
-		constexpr static const auto _var = std::make_tuple(typename std::tuple_element<Index, Task>::type{});
-	};
-
-
-	template<uint32_t Index, typename Task, typename... TaskList_>
-	constexpr static auto getTaskList(Task&& task, TaskList_&&... list)
-	{
-		return std::tuple_cat(std::make_tuple(std::get<Index>(std::forward<Task>(task))), getTaskList<Index, TaskList_...>(std::forward<TaskList_>(list)...));
-	}
-
-	template<uint32_t Index, typename Task>
-	constexpr static auto getTaskList(Task&& task)
-	{
-		return std::make_tuple(std::get<Index>(std::forward<Task>(task))); 
-	}
-
 public:
 	constexpr static auto getTaskDefines(TaskList&&... list)
 	{
-		return getTaskList<IndexTaskDefine, TaskList...>(std::forward<TaskList>(list)...);
+		return std::tuple_cat(std::make_tuple(std::get<IndexTaskDefine>(std::forward<TaskList>(list))) ...);
 	}
 
-	constexpr static const auto _var = __SeparateTaskList<IndexTaskMeta, TaskList...>::_var;
-	using TaskMetaTuple = typename std::remove_const<decltype(_var)>::type; /* Resolved(1): remove_const¸¦ ±ôºýÇÔ.  */
+	using TaskMetaTuple = typename std::remove_const<decltype(
+		std::tuple_cat(std::make_tuple(typename std::tuple_element<IndexTaskMeta, TaskList>::type{}) ... )
+		)>::type; /* Resolved(1): remove_const¸¦ ±ôºýÇÔ.  */
+	//using TaskCallableTuple = typename std::remove_const<decltype(__SeparateTaskList<IndexTaskCallable, TaskList...>::_var)>::type;
 };
 
 template<typename... TaskList>
