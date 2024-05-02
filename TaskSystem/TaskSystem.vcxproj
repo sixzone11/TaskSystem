@@ -143,6 +143,7 @@
   <ItemGroup>
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="TaskCallableDescription.h" />
     <ClInclude Include="TaskSystem.h" />
   </ItemGroup>
   <ItemGroup>

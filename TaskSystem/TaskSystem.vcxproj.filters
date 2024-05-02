@@ -24,6 +24,9 @@
     <ClInclude Include="TaskSystem.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="TaskCallableDescription.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
