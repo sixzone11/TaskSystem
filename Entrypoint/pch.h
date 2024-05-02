@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <stdint.h>
 #include <tuple>
 #include <vector>
@@ -618,7 +618,7 @@ struct CalcNumNextTasks<
 template<typename Tuple>
 struct MakeTaskMetaChain;
 
-/* Todo(jiman, Resolved(1)): ¾Æ·¡ ²ÃÀÌ Ã³¸®°¡ ¾È µÅ¼­ const std::tuple<> ²Ã·Î ¿ìÈ¸ ÁßÀÌ³ª, const¸¦ Á¦¿ÜÇÒ ¹æ¹ıÀ» Ã£¾Æ¾ß ÇÔ.
+/* Todo(jiman, Resolved(1)): ì•„ë˜ ê¼´ì´ ì²˜ë¦¬ê°€ ì•ˆ ë¼ì„œ const std::tuple<> ê¼´ë¡œ ìš°íšŒ ì¤‘ì´ë‚˜, constë¥¼ ì œì™¸í•  ë°©ë²•ì„ ì°¾ì•„ì•¼ í•¨.
 template<template<typename... Args> class Tuple, typename... TaskMetaList>
 struct MakeTaskMetaChain<Tuple<TaskMetaList...>>
 */
@@ -670,7 +670,7 @@ public:
 
 	using TaskMetaTuple = typename std::remove_const<decltype(
 		std::tuple_cat(std::make_tuple(typename std::tuple_element<IndexTaskMeta, TaskList>::type{}) ... )
-		)>::type; /* Resolved(1): remove_const¸¦ ±ôºıÇÔ.  */
+		)>::type; /* Resolved(1): remove_constë¥¼ ê¹œë¹¡í•¨.  */
 	//using TaskCallableTuple = typename std::remove_const<decltype(__SeparateTaskList<IndexTaskCallable, TaskList...>::_var)>::type;
 };
 

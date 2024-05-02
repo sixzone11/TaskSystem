@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #ifdef TASKSYSTEM_EXPORTS
 #define TASKSYSTEM_API __declspec(dllexport)
