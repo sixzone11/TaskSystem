@@ -98,7 +98,7 @@ struct CallableSignature;
 ///////////////////////////////////////////////////////////////////////
 // CallableInternalTypes
 
-template<typename Callable>
+template<typename Callable, typename = void>
 struct CallableInternalTypes;
 
 template<typename Ret, typename... Params>
@@ -108,6 +108,35 @@ struct CallableInternalTypes<Ret(*)(Params...)>
 	using ParamTypeTuple = tuple<Params... >;
 
 	using OriginalSignature = CallableSignature<Ret(*)(Params...), Ret, Params...>;
+};
+
+// Note(jiman): non-static member function의 cv-qualifier 중 const만 대응됨.
+
+template<typename Type, typename Ret, typename... Params>
+struct CallableInternalTypes<Ret(Type::*)(Params...) const>
+{
+	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
+	using ParamTypeTuple = tuple<Params... >;
+
+	using OriginalSignature = CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...>;
+};
+
+template<typename Type, typename Ret, typename... Params>
+struct CallableInternalTypes<Ret(Type::*)(Params...)>
+{
+	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
+	using ParamTypeTuple = tuple<Params... >;
+
+	using OriginalSignature = CallableSignature<Ret(Type::*)(Params...), Ret, Params...>;
+};
+
+template<typename Callable, typename>
+struct CallableInternalTypes
+//	: CallableInternalTypes<Callable, decltype(&Callable::operator())> {};
+{
+	using RetType = typename CallableInternalTypes<decltype(&Callable::operator())>::RetType;
+	using ParamTypeTuple = typename CallableInternalTypes<decltype(&Callable::operator())>::ParamTypeTuple;
+	using OriginalSignature = typename CallableInternalTypes<decltype(&Callable::operator())>::OriginalSignature;
 };
 
 ///////////////////////////////////////////////////////////////////////
@@ -165,32 +194,59 @@ struct CallableSignatureWithKey : CallableSignature<Callable, Ret, Args...>
 ///////////////////////////////////////////////////////////////////////
 // makeCallableSignature utility
 
-template<typename Func>
-auto makeCallableSignature(Func&& func);
+// Guide: 함수 오버로딩에선 원형이랄 것의 선언을 따로 둘 필요 없음.
+// 템플릿 특수화와 달리 함수 오버로딩인 관계로 타입 추론의 방법 자체가 다름을 인지해야할 것.
+
+//template<typename Func>
+//constexpr auto makeCallableSignature(Func&& func);
+
+//template<typename Func, typename = void>
+//constexpr auto makeCallableSignature(Func&& func);
 
 template<typename Ret, typename... Params>
-auto makeCallableSignature(Ret(*f)(Params...))
+constexpr auto makeCallableSignature(Ret(*f)(Params...))
 {
 	return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Params...> {};
 }
 
 template<typename Ret, typename... Params, typename... Args>
-auto makeCallableSignature(Ret(*f)(Params...), Args...)
+constexpr auto makeCallableSignature(Ret(*f)(Params...), Args...)
 {
 	return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Args...> {};
 }
 
 template<typename Key, typename Ret, typename... Params, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
-auto makeCallableSignature(Ret(*f)(Params...))
+constexpr auto makeCallableSignature(Ret(*f)(Params...))
 {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {};
 }
 
 template<typename Key, typename Ret, typename... Params, typename... Args, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
-auto makeCallableSignature(Ret(*f)(Params...), Args...)
+constexpr auto makeCallableSignature(Ret(*f)(Params...), Args...)
 {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {};
 }
+
+template<typename Callable, typename... Args,
+	typename = std::enable_if_t<std::is_class_v<std::remove_reference_t<Callable>>>>
+constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)
+{
+	//using RetType = decltype(callable(args...));
+	//return CallableSignatureWithKey<BindingKey_None, remove_reference_t<Callable>, RetType, Args...> {};
+	return CallableSignatureWithKey<BindingKey_None, remove_reference_t<Callable>, typename lambda_details<Callable>::RetType, Args...> {};
+}
+
+template<typename Key, typename Callable, typename... Args,
+	typename = std::enable_if_t<
+		std::is_class_v<std::remove_reference_t<Callable>> &&
+		is_base_of_v<BindingKey, Key> >>
+constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)
+{
+	return CallableSignatureWithKey<Key, Callable, lambda_details<Callable>::RetType, Args...>;
+}
+
+void nothing() {}
+using NullCallableSignature = decltype(makeCallableSignature(nothing));
 
 template<typename OriginalTypeTupleT, typename ReturnTypeTupleT>
 struct BindingSlotTypeChecker;
