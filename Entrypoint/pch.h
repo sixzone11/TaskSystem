@@ -248,10 +248,10 @@ struct GetChainNext<
 };
 
 template<
-	uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes, uint32_t NumHolders,
+	uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes, typename... OtherArgumentTypes,
 	uint32_t NumManifestsNext, uint32_t NumLinksNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, bool DepTypeNext, typename... PathesNext, typename... Nexts>
 struct GetChainNext<
-	GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, std::array<ResultHolder, NumHolders>,
+	GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, std::tuple<OtherArgumentTypes...>,
 	GetNext<NumManifestsNext, NumLinksNext, NumInputsNext, NumOutputsNext, DepTypeNext, PathesNext...>, Nexts...>
 	: GetChainNext<
 	GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>,
@@ -277,8 +277,8 @@ struct GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, 
 	constexpr static const auto _precedingCount = First::_precedingCount;
 };
 
-template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes, uint32_t NumHolders, typename... Nexts>
-struct GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, std::array<ResultHolder, NumHolders>, Nexts...>
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes, typename... OtherArgumentTypes, typename... Nexts>
+struct GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, std::tuple<OtherArgumentTypes...>, Nexts...>
 	: GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, Nexts...>
 {};
 
@@ -294,8 +294,8 @@ struct GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, 
 	constexpr static const auto _precedingCount = First::_precedingCount;
 };
 
-template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes, uint32_t NumHolders>
-struct GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, std::array<ResultHolder, NumHolders>>
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes, typename... OtherArgumentTypes>
+struct GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, std::tuple<OtherArgumentTypes...>>
 	: GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>>
 {};
 
@@ -345,6 +345,11 @@ struct GetJunction<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepTyp
 	constexpr static const auto _precedingCount = First::_precedingCount;
 };
 
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes, typename... OtherArgumentTypes, typename... Nexts>
+struct GetJunction<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, std::tuple<OtherArgumentTypes...>, Nexts...>
+	: GetJunction<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, Nexts...>
+{};
+
 template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes>
 struct GetJunction<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>>
 {
@@ -360,6 +365,11 @@ struct GetJunction<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepTyp
 	constexpr static const auto _outputs = First::_outputs;
 	constexpr static const auto _precedingCount = First::_precedingCount;
 };
+
+template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... OtherArgumentTypes, typename... Pathes>
+struct GetJunction<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, std::tuple<OtherArgumentTypes...>>
+	: GetJunction<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>>
+{};
 
 template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... Pathes>
 struct GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, false, Pathes...>
@@ -450,7 +460,7 @@ struct TaskWriter
 {
 	static auto task(const char* taskName)
 	{
-		return std::make_tuple(TaskDefine{ taskName }, TaskMeta{});
+		return std::make_tuple(TaskDefine{ taskName }, TaskMeta{}, NullCallableSignature{});
 	}
 
 	template<typename Func, typename... ArgTypes>
@@ -458,7 +468,17 @@ struct TaskWriter
 	{
 		static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_function_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
 		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
-		return std::make_tuple(TaskDefine{}, TaskMeta{});
+		using CallableSignature = decltype(makeCallableSignature(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
+		return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
+	}
+
+	template<typename Key, typename Func, typename... ArgTypes>
+	static auto task(Func&& func, ArgTypes&&... args)
+	{
+		static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_function_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
+		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
+		using CallableSignature = decltype(makeCallableSignature(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
+		return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
 	}
 
 	template<typename... TaskList>
@@ -496,13 +516,13 @@ struct CalcNumTaskManifests<GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes
 };
 
 
-template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, uint32_t NumHolders>
-struct CalcNumTaskManifests<GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes...>, std::array<ResultHolder, NumHolders>>
+template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, typename... OtherArgumentTypes>
+struct CalcNumTaskManifests<GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes...>, std::tuple<OtherArgumentTypes...>>
 	: CalcNumTaskManifests<GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes...>>
 {};
 
-template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, uint32_t NumHolders, typename... TaskList>
-struct CalcNumTaskManifests<GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes...>, std::array<ResultHolder, NumHolders>, TaskList...>
+template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, typename... OtherArgumentTypes, typename... TaskList>
+struct CalcNumTaskManifests<GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes...>, std::tuple<OtherArgumentTypes...>, TaskList...>
 	: CalcNumTaskManifests<GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes...>, TaskList...>
 {};
 
@@ -530,16 +550,16 @@ struct CalcNumNextTasks<
 	constexpr static const uint32_t valueInJunction = NCur + CalcNumNextTasks<Second, TaskList...>::valueInJunction;
 };
 
-template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, uint32_t NumHolders>
-struct CalcNumNextTasks<GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes...>, std::array<ResultHolder, NumHolders>>
+template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, typename... OtherArgumentTypes>
+struct CalcNumNextTasks<GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes...>, std::tuple<OtherArgumentTypes...>>
 	: CalcNumNextTasks< GetNext<M, N, NumInputs, NumOutputs, DefType, Pathes...>>
 {};
 
 template<
-	uint32_t MCur, uint32_t NCur, uint32_t NumInputsCur, uint32_t NumOutputsCur, bool DefTypeCur, typename... PathesCur, uint32_t NumHoldersCur,
+	uint32_t MCur, uint32_t NCur, uint32_t NumInputsCur, uint32_t NumOutputsCur, bool DefTypeCur, typename... PathesCur, typename... OtherArgumentTypes,
 	uint32_t MNext, uint32_t NNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, bool DefTypeNext, typename... PathesNext, typename... TaskList>
 struct CalcNumNextTasks<
-	GetNext<MCur, NCur, NumInputsCur, NumOutputsCur, DefTypeCur, PathesCur...>, std::array<ResultHolder, NumHoldersCur>,
+	GetNext<MCur, NCur, NumInputsCur, NumOutputsCur, DefTypeCur, PathesCur...>, std::tuple<OtherArgumentTypes...>,
 	GetNext<MNext, NNext, NumInputsNext, NumOutputsNext, DefTypeNext, PathesNext...>, TaskList...>
 	: CalcNumNextTasks<
 	GetNext<MCur, NCur, NumInputsCur, NumOutputsCur, DefTypeCur, PathesCur...>,
@@ -589,17 +609,20 @@ struct SeparateTaskList
 private:
 	constexpr static const uint32_t IndexTaskDefine = 0;
 	constexpr static const uint32_t IndexTaskMeta = 1;
+	constexpr static const uint32_t IndexTaskCallable = 2;
 
 public:
-	constexpr static auto getTaskDefines(TaskList&&... list)
-	{
+	constexpr static auto getTaskDefines(TaskList&&... list) {
 		return std::tuple_cat(std::make_tuple(std::get<IndexTaskDefine>(std::forward<TaskList>(list))) ...);
 	}
 
-	using TaskMetaTuple = typename std::remove_const<decltype(
-		std::tuple_cat(std::make_tuple(typename std::tuple_element<IndexTaskMeta, TaskList>::type{}) ... )
-		)>::type; /* Resolved(1): remove_const를 깜빡함.  */
-	//using TaskCallableTuple = typename std::remove_const<decltype(__SeparateTaskList<IndexTaskCallable, TaskList...>::_var)>::type;
+	using TaskMetaTuple = typename std::remove_const_t<decltype(
+		std::tuple_cat(std::make_tuple(typename std::tuple_element_t<IndexTaskMeta, TaskList>{}) ...)
+		)>; /* Resolved(1): remove_const를 깜빡함. */
+
+	using TaskCallableTuple = typename std::remove_const_t<decltype(
+		std::tuple_cat(std::make_tuple(typename std::tuple_element_t<IndexTaskCallable, TaskList>{}) ...)
+		)>;
 };
 
 template<typename... TaskList>
@@ -607,6 +630,9 @@ constexpr auto getTaskDefines(TaskList&&... list) { return SeparateTaskList<Task
 
 template<typename... TaskList>
 using TaskMetaTuple = typename SeparateTaskList<TaskList...>::TaskMetaTuple;
+
+template<typename... TaskList>
+using TaskCallableTuple = typename SeparateTaskList<TaskList...>::TaskCallableTuple;
 
 struct TaskWriterUtil
 {
@@ -647,13 +673,13 @@ public:
 template<typename... TaskList>
 auto TaskWriter::chain(TaskList&&... list)
 {
-	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaChain<TaskMetaTuple<TaskList...>>{});
+	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaChain<TaskMetaTuple<TaskList...>>{}, TaskCallableTuple<TaskList...>{});
 }
 
 template<typename... TaskList>
 auto TaskWriter::junction(TaskList&&... list)
 {
-	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaJunction<TaskMetaTuple<TaskList...>>{});
+	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaJunction<TaskMetaTuple<TaskList...>>{}, TaskCallableTuple<TaskList...>{});
 }
 
 
