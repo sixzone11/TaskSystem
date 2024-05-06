@@ -603,6 +603,18 @@ template<typename Tuple>
 using TaskMetaJunction = typename MakeTaskMetaJunction<Tuple>::TaskMetaJunction;
 
 
+template<typename T>
+struct is_callable_signature : false_type {};
+
+template<typename Callable, typename Ret, typename... Args>
+struct is_callable_signature<CallableSignature<Callable, Ret, Args...>> : true_type {};
+
+template<typename Key, typename Callable, typename Ret, typename... Args>
+struct is_callable_signature<CallableSignatureWithKey<Key, Callable, Ret, Args...>> : is_callable_signature<CallableSignature<Callable, Ret, Args...>> {};
+
+template<typename T>
+constexpr bool is_callable_signature_v = is_callable_signature<T>::value;
+
 template<typename... TaskList>
 struct SeparateTaskList
 {
@@ -621,7 +633,10 @@ public:
 		)>; /* Resolved(1): remove_const를 깜빡함. */
 
 	using TaskCallableTuple = typename std::remove_const_t<decltype(
-		std::tuple_cat(std::make_tuple(typename std::tuple_element_t<IndexTaskCallable, TaskList>{}) ...)
+		std::tuple_cat(
+			conditional_t<is_callable_signature_v<typename std::tuple_element_t<IndexTaskCallable, TaskList>>,
+			decltype(std::make_tuple(typename std::tuple_element_t<IndexTaskCallable, TaskList>{})),
+			typename std::tuple_element_t<IndexTaskCallable, TaskList >> {} ...)
 		)>;
 };
 
@@ -669,16 +684,23 @@ public:
 	}
 };
 
+template<typename... CallableSignatures>
+auto makeCallableInfoByTuple(tuple<CallableSignatures...>&& tuple)
+{
+	return makeCallableInfo(CallableSignatures{} ...);
+}
 
 template<typename... TaskList>
 auto TaskWriter::chain(TaskList&&... list)
 {
+	makeCallableInfoByTuple(TaskCallableTuple<TaskList...>{});
 	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaChain<TaskMetaTuple<TaskList...>>{}, TaskCallableTuple<TaskList...>{});
 }
 
 template<typename... TaskList>
 auto TaskWriter::junction(TaskList&&... list)
 {
+	makeCallableInfoByTuple(TaskCallableTuple<TaskList...>{});
 	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaJunction<TaskMetaTuple<TaskList...>>{}, TaskCallableTuple<TaskList...>{});
 }
 
