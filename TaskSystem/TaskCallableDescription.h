@@ -231,8 +231,6 @@ template<typename Callable, typename... Args,
 	typename = std::enable_if_t<std::is_class_v<std::remove_reference_t<Callable>>>>
 constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)
 {
-	//using RetType = decltype(callable(args...));
-	//return CallableSignatureWithKey<BindingKey_None, remove_reference_t<Callable>, RetType, Args...> {};
 	return CallableSignatureWithKey<BindingKey_None, remove_reference_t<Callable>, typename lambda_details<Callable>::RetType, Args...> {};
 }
 
@@ -242,7 +240,7 @@ template<typename Key, typename Callable, typename... Args,
 		is_base_of_v<BindingKey, Key> >>
 constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)
 {
-	return CallableSignatureWithKey<Key, Callable, lambda_details<Callable>::RetType, Args...>;
+	return CallableSignatureWithKey<Key, remove_reference_t<Callable>, lambda_details<Callable>::RetType, Args...>;
 }
 
 void nothing() {}

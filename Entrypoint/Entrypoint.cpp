@@ -115,7 +115,7 @@ static void test()
 	}
 }
 
-void test2();
+void test_ver2();
 
 int main()
 {
@@ -148,7 +148,7 @@ int main()
 	//std::cout << *taskKey << std::endl;
 
 	test();
-	test2();
+	test_ver2();
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

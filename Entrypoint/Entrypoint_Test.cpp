@@ -1,7 +1,5 @@
 ﻿#include "pch.h"
 
-#include "TaskSystem/TaskSystem.h"
-
 template<typename T>
 struct Print {
 	struct Offsets { constexpr static const auto _var = T::_offsets; };
@@ -81,12 +79,6 @@ void print(const TaskWritten& taskWritten)
 	print(inputs, "Inputs");
 	print(outputs, "Outputs");
 	printDefines(taskDefines);
-
-	//printf("TaskNames:\n");
-	//for (const TaskDefine& taskDefine : taskDefines)
-	//{
-	//	printf("\t%s\n", taskDefine._taskName);
-	//}
 }
 
 
@@ -283,7 +275,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	return std::vector<char>();
 }
 
-void test2()
+void test_ver2()
 {
 	auto debugTask = Task("Task");
 
