@@ -20,6 +20,9 @@ void print(std::vector<uint32_t>& v, const char* name)
 	printf("]\n");
 }
 
+template<typename T>
+void printDefines(const T& t);
+
 // helper function to print a tuple of any size
 template<class Tuple, std::size_t N>
 struct TuplePrinter
@@ -27,7 +30,7 @@ struct TuplePrinter
 	static void print(const Tuple& t)
 	{
 		TuplePrinter<Tuple, N - 1>::print(t);
-		std::cout << ", " << std::get<N - 1>(t)._taskName;
+		printDefines(std::get<N - 1>(t));
 	}
 };
 
@@ -36,7 +39,7 @@ struct TuplePrinter<Tuple, 1>
 {
 	static void print(const Tuple& t)
 	{
-		std::cout << std::get<0>(t)._taskName;
+		printDefines(std::get<0>(t));
 	}
 };
 
@@ -130,10 +133,8 @@ struct FutureResult
 {
 	T value;
 
-	operator T && ()
-	{
-		return value;
-	}
+	//operator T && () && { 	return value; }
+	operator T & () { return value; }
 };
 
 template<>
@@ -191,7 +192,7 @@ void resultTest(const char* arg)
 	struct FunctorTest
 	{
 		int operator()(double, double, double) { return true; }
-		bool operator()(const char*, int) { return true; }
+		//bool operator()(const char*, int) { return true; }
 	} functorTest;
 	auto resultVoidOfFunctorTest = result(functorTest);
 
@@ -200,6 +201,8 @@ void resultTest(const char* arg)
 	auto lambdaTest = [arg]() {};
 	auto resultVoidOfLambdaTest = result(lambdaTest);
 
+
+	&FunctorTest::operator();
 }
 
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
@@ -221,7 +224,15 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 					return std::vector<char>();
 				else
 					return memory;
-			}, result(readFile), result(allocateMemory))
+			}, BindingSlot(), BindingSlot()),
+		Task([](int readResult, std::vector<char>& memory)
+			{
+				if (readResult != 0)
+					return std::vector<char>();
+				else
+					return memory;
+			}, BindingSlot(), BindingSlot())
+			//}, result(readFile), result(allocateMemory))
 		);
 
 	auto getFilePath = [](const char* path) { return path; };
@@ -237,7 +248,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 
 				return getFilePath(filePath);
 			}),
-		Task(openFile, result(getFilePath)), delayed<0>(),
+		Task(openFile, BindingSlot()),/* delayed<0>(),*/
 		Task([fd = result(openFile), r = result(allocateMemory)]()
 			{
 				size_t size = getSize(fd.value);
@@ -245,10 +256,13 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 				std::vector<char> copied = r.value;
 				if (readFile(fd.value, copied, size) == 0)
 					return r.value;
-			}), delayed<0, 1>()
+			})/*, delayed<0, 1>()*/
 		);
 
 	Task(isExist, filePath);
+
+	// 1. 중첩 체인, 정션에서 어떻게 CallableInfo 를 구성하고 그 제약을 설정하게 할 것인지.
+	// 2. 실제 데이터가 오가기 위한 메모리 확보 및 공간 연결 구성
 
 	//auto openReadAndCopyFromItIfExist = Chain(
 	//	Task(isExist, filePath),
@@ -389,7 +403,39 @@ void test2()
 	 	Task("AsyncTask""5")
 	 );
 
-	auto& r = debugJunction;
+
+	 auto testDependenciesOfTaskss =
+		 Chain(
+			 Task("0"),
+			 Junction(
+				 Task("1")
+				 , Task("2")
+				 , Task("3")
+			 )
+			 , Junction(
+				 Task("4")
+				 , Task("5")
+			 )
+		 );
+
+	 auto testTask2s =
+		 Junction(
+			 std::move(testDependenciesOfTaskss),
+			 Chain(
+				 Task("6")
+				 , Junction(
+					 Task("7")
+					 , Task("8")
+				 )
+			 )
+			 , Chain(
+				 Task("9")
+				 , Task("10")
+				 , Task("11")
+			 )
+		 );
+
+	auto& r = result;
 	using T = std::remove_reference_t<decltype(r)>;
 
 	printf("TaskWrittenSize: %zu\n", sizeof(T));
