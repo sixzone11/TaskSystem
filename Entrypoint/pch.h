@@ -195,7 +195,7 @@ struct GetNext<1, 1, 1, 1, true>
 {
 public:
 	constexpr static const std::tuple<uint32_t> _offsets{ 0 };
-	constexpr static const std::tuple<uint32_t> _links{ 0 };
+	constexpr static const std::tuple<uint32_t> _links{ 1 };
 	constexpr static const std::tuple<uint32_t> _inputs{ 0 };
 	constexpr static const std::tuple<uint32_t> _outputs{ 0 };
 	constexpr static const std::tuple<uint32_t, uint32_t> _precedingCount{ 0, 1 };
