@@ -41,7 +41,7 @@
     <ClCompile Include="Task.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TaskSystemRevised.cpp">
+    <ClCompile Include="TaskSystem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="TaskExtension.cpp">

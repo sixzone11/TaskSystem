@@ -36,8 +36,8 @@ struct TaskExecutePointDesc
 
 extern thread_local TaskExecutePoint g_defaultPoint;
 
-TaskExecutePoint g_taskExecutePointMainThread;
-TaskExecutePoint g_taskExecutePointAsyncWorkerThread;
+extern TaskExecutePoint g_taskExecutePointMainThread;
+extern TaskExecutePoint g_taskExecutePointAsyncWorkerThread;
 
 struct TaskDefined
 {
@@ -463,8 +463,6 @@ struct FormatMeta<Format::utf8>
 	static decltype(std::cout)& cout;
 };
 
-decltype(std::cout)& FormatMeta<Format::utf8>::cout = std::cout;
-
 template<>
 struct FormatMeta<Format::utf16>
 {
@@ -475,12 +473,5 @@ struct FormatMeta<Format::utf16>
 	static decltype(std::wcout)& cout;
 };
 
-decltype(std::wcout)& FormatMeta<Format::utf16>::cout = std::wcout;
-
-template<Format F, typename T>
-void convertToStringList(const T& var)
-{
-	FormatMeta<F>::cout << "Default" << std::endl;
-}
 
 template<Format F> TASKSYSTEM_API void convertToStringList(const int& var);

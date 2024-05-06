@@ -157,7 +157,7 @@
     </ClCompile>
     <ClCompile Include="TaskExtension.cpp" />
     <ClCompile Include="Task.cpp" />
-    <ClCompile Include="TaskSystemRevised.cpp" />
+    <ClCompile Include="TaskSystem.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
