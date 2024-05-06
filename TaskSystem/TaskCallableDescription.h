@@ -1,8 +1,9 @@
 ﻿#pragma once
 
-using namespace std;
-
 #include <tuple>
+#include "lambda_details.h"
+
+using namespace std;
 
 ///////////////////////////////////////////////////////////////////////
 // BindingSlot

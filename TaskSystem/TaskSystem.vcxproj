@@ -142,6 +142,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
+    <ClInclude Include="lambda_details.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="TaskCallableDescription.h" />
     <ClInclude Include="TaskSystem.h" />
