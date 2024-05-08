@@ -27,7 +27,10 @@ constexpr bool is_binding_slot_v = is_binding_slot<T>::value;
 struct BindingKey {};
 struct BindingKey_None : BindingKey {};
 
-#define BindingKeys(Key, ...) tuple<Key, __VA_ARGS__>{}
+template<typename... Keys>
+struct BindingKeyList {};
+#define BindingKeys(Key, ...) BindingKeyList<Key, __VA_ARGS__>{}
+//#define BindingKeys(Key, ...) tuple<Key, __VA_ARGS__>{}
 
 ///////////////////////////////////////////////////////////////////////
 // pseudo_void
@@ -71,8 +74,8 @@ struct find_type_in_types<FindingType, Index> : value_type_invalid {};
 template<typename FindingType, typename TypeListTuple>
 struct find_type_in_tuple;
 
-template<typename FindingType, typename... Types>
-struct find_type_in_tuple<FindingType, tuple<Types...>>
+template<typename FindingType, template<typename... TypeList> typename ListingType, typename... Types>
+struct find_type_in_tuple<FindingType, ListingType<Types...>>
 {
 	constexpr static size_t value = find_type_in_types<FindingType, 0, Types...>::value;
 };
@@ -80,8 +83,8 @@ struct find_type_in_tuple<FindingType, tuple<Types...>>
 template<typename TypeListTuple, typename FindingTypeTuple>
 struct FindType;
 
-template<typename TypeListTuple, typename... FindingTypes>
-struct FindType<TypeListTuple, tuple<FindingTypes...>>
+template<typename TypeListTuple, template<typename... TypeList> typename ListingType, typename... FindingTypes>
+struct FindType<TypeListTuple, ListingType<FindingTypes...>>
 {
 	using FoundIndexTuple = index_sequence< find_type_in_tuple<FindingTypes, TypeListTuple>::value ... >;
 };
@@ -302,8 +305,8 @@ struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_s
 };
 
 template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs>
-struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, tuple<KeyTs...>>
-	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, tuple<KeyTs...>>::FoundIndexTuple> {};
+struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>>
+	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexTuple> {};
 
 template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... CallableSignatureTs>
 struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, CallableSignatureTs...>
@@ -316,8 +319,8 @@ struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_s
 	, CallableInfo<CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...> {};
 
 template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs, typename... CallableSignatureTs>
-struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, tuple<KeyTs...>, CallableSignatureTs...>
-	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, tuple<KeyTs...>>::FoundIndexTuple, CallableSignatureTs...> {};
+struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>, CallableSignatureTs...>
+	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexTuple, CallableSignatureTs...> {};
 
 ///////////////////////////////////////////////////////////////////////
 // makeCallableInfo utility
