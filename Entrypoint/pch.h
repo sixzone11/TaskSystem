@@ -477,7 +477,7 @@ struct TaskWriter
 	{
 		static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_function_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
 		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
-		using CallableSignature = decltype(makeCallableSignature(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
+		using CallableSignature = decltype(makeCallableSignature<Key>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
 		return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
 	}
 
