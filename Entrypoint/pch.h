@@ -612,6 +612,9 @@ struct is_callable_signature<CallableSignature<Callable, Ret, Args...>> : true_t
 template<typename Key, typename Callable, typename Ret, typename... Args>
 struct is_callable_signature<CallableSignatureWithKey<Key, Callable, Ret, Args...>> : is_callable_signature<CallableSignature<Callable, Ret, Args...>> {};
 
+template<typename... Keys>
+struct is_callable_signature<BindingKeyList<Keys...>> : true_type {};
+
 template<typename T>
 constexpr bool is_callable_signature_v = is_callable_signature<T>::value;
 
@@ -623,14 +626,22 @@ private:
 	constexpr static const uint32_t IndexTaskMeta = 1;
 	constexpr static const uint32_t IndexTaskCallable = 2;
 
+
+private:
+	template<typename T>
+	constexpr static auto make_tuple_if_not_void(T&& arg) { return std::make_tuple(std::forward<T>(arg)); }
+
+	constexpr static auto make_tuple_if_not_void(pseudo_void&& void_arg) { return tuple<> {}; }
+	constexpr static auto make_tuple_if_not_void(pseudo_void& void_arg) { return tuple<> {}; }
+	constexpr static auto make_tuple_if_not_void(const pseudo_void& void_arg) { return tuple<> {}; }
+
 public:
 	constexpr static auto getTaskDefines(TaskList&&... list) {
-		return std::tuple_cat(std::make_tuple(std::get<IndexTaskDefine>(std::forward<TaskList>(list))) ...);
+		return std::tuple_cat(make_tuple_if_not_void(std::get<IndexTaskDefine>(std::forward<TaskList>(list)))...);
 	}
 
 	using TaskMetaTuple = typename std::remove_const_t<decltype(
-		std::tuple_cat(std::make_tuple(typename std::tuple_element_t<IndexTaskMeta, TaskList>{}) ...)
-		)>; /* Resolved(1): remove_const를 깜빡함. */
+		std::tuple_cat(make_tuple_if_not_void(typename std::tuple_element_t<IndexTaskMeta, TaskList>{})...))>; /* Resolved(1): remove_const를 깜빡함. */
 
 	using TaskCallableTuple = typename std::remove_const_t<decltype(
 		std::tuple_cat(

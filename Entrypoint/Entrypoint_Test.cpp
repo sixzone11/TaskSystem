@@ -86,6 +86,7 @@ void print(const TaskWritten& taskWritten)
 #define Junction    TaskWriter::junction
 #define Task        TaskWriter::task
 
+#define KeyList(Key, ...) make_tuple(pseudo_void{}, pseudo_void{}, BindingKeys(Key, __VA_ARGS__))
 
 bool isExist(const char* filePath) { return true; }
 void* openFile(const char* filePath) { return nullptr; }
@@ -197,6 +198,12 @@ void resultTest(const char* arg)
 	&FunctorTest::operator();
 }
 
+namespace KeyA {
+	struct First : BindingKey {};
+	struct Second : BindingKey {};
+	struct Third : BindingKey {};
+}
+
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 {
 	Task(readFile, result(openFile), result(allocateMemory), result(getSize));
@@ -206,10 +213,10 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 
 	Chain(
 		Task(isExist, filePath),
-		Task(openFile, filePath),
-		Task(getSize, result(openFile)),
-		Task(allocateMemory, result(getSize)),
-		Task(readFile, result(openFile), result(allocateMemory), result(getSize)),
+		Task<KeyA::First>(openFile, filePath),
+		Task<KeyA::Second>(getSize, BindingSlot()), KeyList(KeyA::First),
+		Task<KeyA::Third>(allocateMemory, BindingSlot()), KeyList(KeyA::Second),
+		Task(readFile, BindingSlot(), BindingSlot(), BindingSlot()), KeyList(KeyA::First, KeyA::Third, KeyA::Second),
 		Task([](int readResult, std::vector<char>& memory)
 			{
 				if (readResult != 0)
