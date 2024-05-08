@@ -37,6 +37,8 @@ struct BindingKeyList {};
 
 struct pseudo_void {};
 
+template<typename T>
+constexpr bool is_pseudo_void_v = is_same_v<T, pseudo_void>;
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -273,8 +275,8 @@ struct BindingSlotTypeChecker<tuple<ArgsOriginal...>, tuple<ArgsGiven...>>
 template<typename ReturnTypeTuple, typename KeyTypeTuple, typename... CallableSignatureTs>
 struct CallableInfo;
 
-#define CurrentReturnTypeTuple decltype(tuple_cat(ReturnTypeTupleT {}, tuple<typename CallableSignatureT::RetType>{}))
-#define CurrentKeyTypeTuple decltype(tuple_cat(KeyTypeTupleT {}, tuple<typename CallableSignatureT::KeyType>{}))
+#define CurrentReturnTypeTuple decltype(tuple_cat(std::declval<ReturnTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::RetType>>()))
+#define CurrentKeyTypeTuple decltype(tuple_cat(std::declval<KeyTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::KeyType>>()))
 
 ///////////////////////////////////////////////////////////////////////
 // CallableInfo
@@ -294,8 +296,8 @@ template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSig
 struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
 	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 {
-	using OrderedReturnTypeTupleT = decltype(mapTuple(ReturnTypeTupleT{}, index_sequence<Seqs...>{}));
-	using OrderedBindingSlotTypeTupleT = decltype(mapTuple(typename CallableSignatureT::ParamTypeTuple{}, typename CallableSignatureT::BindingSlotIndexSequence{}));
+	using OrderedReturnTypeTupleT = decltype(mapTuple(std::declval<ReturnTypeTupleT>(), index_sequence<Seqs...>{}));
+	using OrderedBindingSlotTypeTupleT = decltype(mapTuple(std::declval<typename CallableSignatureT::ParamTypeTuple>(), std::declval<typename CallableSignatureT::BindingSlotIndexSequence>()));
 	//tuple<tuple_element<Seqs..., ReturnTypeTupleT>>::type>;
 	CallableInfo()
 	{
