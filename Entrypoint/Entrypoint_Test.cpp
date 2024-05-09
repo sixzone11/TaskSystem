@@ -94,6 +94,8 @@ size_t getSize(void* fileDescriptor) { return 0; }
 std::vector<char> allocateMemory(size_t size) { return std::vector<char>(size); }
 int readFile(void* fileDescriptor, std::vector<char>& dstMemory, size_t size) { return 0; }
 
+int testResultInt() { return 0; }
+
 std::vector<char> openReadAndCopyFromIfExistsDirect(const char* filePath)
 {
 	const bool bExist = isExist(filePath);
@@ -120,6 +122,7 @@ namespace KeyA {
 	struct Second : BindingKey {};
 	struct Third : BindingKey {};
 	struct Forth : BindingKey {};
+	struct Fifth : BindingKey {};
 }
 
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
@@ -169,6 +172,19 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 		);
 
 	Task(isExist, filePath);
+
+
+	Chain(
+		Task<KeyA::Forth>(testResultInt),
+		//Task( [ readResult = get(KeyA::Forth), memory = getRef(KeyA::Third()) ] ()
+		Task([](tresult<KeyA::Forth> readResult)
+			{
+				if (readResult != 0)
+					return std::vector<char>();
+				else
+					return std::vector<char>();
+			})
+	);
 
 	// 1. 중첩 체인, 정션에서 어떻게 CallableInfo 를 구성하고 그 제약을 설정하게 할 것인지.
 	// 2. 실제 데이터가 오가기 위한 메모리 확보 및 공간 연결 구성

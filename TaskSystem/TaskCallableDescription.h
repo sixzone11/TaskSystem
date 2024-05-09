@@ -15,7 +15,6 @@ struct BindingSlot
 };
 
 template<typename T>	struct is_binding_slot : conditional_t<is_base_of_v<BindingSlot, T>, true_type, false_type> {};
-//template<>				struct is_binding_slot<BindingSlot> : true_type {};
 
 
 template<typename T>

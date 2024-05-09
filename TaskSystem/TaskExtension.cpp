@@ -28,7 +28,7 @@ void tes2222t()
 	auto callableSignature0 = makeCallableSignature<KeyA::First>(testFloatRet);
 	auto callableSignature1 = makeCallableSignature<SampleKey>(testIntRet);
 	auto callableSignature2 = makeCallableSignature(testVoidRet);
-	auto callableSignature2_binding = makeCallableSignature(testVoidRet, BindingSlot(), BindingSlot());
+	auto callableSignature2_binding = makeCallableSignature(testVoidRet, SampleKey(), BindingSlot());
 	auto callableSignature2_pure = callableSignature2_binding.getOriginalSignature();
 	auto callableSignature3_binding = makeCallableSignature<KeyA::Second>(test3, BindingSlot(), BindingSlot());
 	auto callableSignature4_binding = makeCallableSignature(test4, BindingSlot());
