@@ -202,6 +202,7 @@ namespace KeyA {
 	struct First : BindingKey {};
 	struct Second : BindingKey {};
 	struct Third : BindingKey {};
+	struct Forth : BindingKey {};
 }
 
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
@@ -216,22 +217,14 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 		Task<KeyA::First>(openFile, filePath),
 		Task<KeyA::Second>(getSize, BindingSlot()), KeyList(KeyA::First),
 		Task<KeyA::Third>(allocateMemory, BindingSlot()), KeyList(KeyA::Second),
-		Task(readFile, BindingSlot(), BindingSlot(), BindingSlot()), KeyList(KeyA::First, KeyA::Third, KeyA::Second),
+		Task<KeyA::Forth>(readFile, BindingSlot(), BindingSlot(), BindingSlot()), KeyList(KeyA::First, KeyA::Third, KeyA::Second),
 		Task([](int readResult, std::vector<char>& memory)
 			{
 				if (readResult != 0)
 					return std::vector<char>();
 				else
 					return memory;
-			}, BindingSlot(), BindingSlot()),
-		Task([](int readResult, std::vector<char>& memory)
-			{
-				if (readResult != 0)
-					return std::vector<char>();
-				else
-					return memory;
-			}, BindingSlot(), BindingSlot())
-			//}, result(readFile), result(allocateMemory))
+			}, BindingSlot(), BindingSlot()), KeyList(KeyA::Forth, KeyA::Third)
 		);
 
 	auto getFilePath = [](const char* path) { return path; };
