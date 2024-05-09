@@ -14,8 +14,8 @@ struct BindingSlot
 	template<typename T> operator T& () const;
 };
 
-template<typename T>	struct is_binding_slot : false_type {};
-template<>				struct is_binding_slot<BindingSlot> : true_type {};
+template<typename T>	struct is_binding_slot : conditional_t<is_base_of_v<BindingSlot, T>, true_type, false_type> {};
+//template<>				struct is_binding_slot<BindingSlot> : true_type {};
 
 
 template<typename T>
@@ -24,7 +24,7 @@ constexpr bool is_binding_slot_v = is_binding_slot<T>::value;
 ///////////////////////////////////////////////////////////////////////
 // BindingKey
 
-struct BindingKey {};
+struct BindingKey : public BindingSlot {};
 struct BindingKey_None : BindingKey {};
 
 template<typename... Keys>
