@@ -127,8 +127,6 @@ namespace KeyA {
 
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 {
-	Task(readFile, result(openFile), result(allocateMemory), result(getSize));
-
 	if (isExist(filePath) == false)
 		return std::vector<char>();
 
@@ -160,15 +158,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 
 				return getFilePath(filePath);
 			}),
-		Task(openFile, BindingSlot()),/* delayed<0>(),*/
-		Task([fd = result(openFile), r = result(allocateMemory)]()
-			{
-				size_t size = getSize(fd.value);
-				
-				std::vector<char> copied = r.value;
-				if (readFile(fd.value, copied, size) == 0)
-					return r.value;
-			})/*, delayed<0, 1>()*/
+		Task(openFile, BindingSlot())/* delayed<0>(),*/
 		);
 
 	Task(isExist, filePath);

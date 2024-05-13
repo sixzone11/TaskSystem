@@ -488,6 +488,9 @@ struct TaskWriter
 	static auto junction(TaskList&&... list);
 };
 
+#define TaskBlock(...)			[ __VA_ARGS__ ] (auto info, auto& resultTuple)
+#define BindResult(Key, Var)	auto Var = get<find_type_in_tuple<KeyA::First, decltype(info)>::value>(resultTuple)
+
 template<typename... TaskList>
 struct CalcNumTaskManifests;
 
