@@ -22,6 +22,9 @@ namespace KeyA {
 	struct Third : BindingKey {};
 }
 
+struct TESTA {};
+
+
 void tes2222t()
 {
 	struct SampleKey : BindingKey {};
@@ -33,6 +36,15 @@ void tes2222t()
 	auto callableSignature3_binding = makeCallableSignature<KeyA::Second>(test3, BindingSlot(), BindingSlot());
 	auto callableSignature4_binding = makeCallableSignature(test4, BindingSlot());
 	auto callableSignature5_binding = makeCallableSignature<KeyA::Third>(test5, 3, BindingSlot());
+	//auto callableSignature6_binding = makeCallableSignature([](float, int param)
+	//	{
+	//		return param * 4.0;
+	//	});
+	auto callableSignature6_binding = makeCallableSignature([]<typename A, typename B>(TESTA, A info, B& resultTuple)
+		{
+			BindResult(KeyA::First, param);
+			return param * 4.0;
+		});
 
 	auto callableInfo1 = makeCallableInfo(
 		callableSignature0,
@@ -52,5 +64,16 @@ void tes2222t()
 		callableSignature4_binding, BindingKeys(KeyA::First),
 		callableSignature3_binding, BindingKeys(SampleKey, KeyA::First),
 		callableSignature2_binding, BindingKeys(SampleKey, KeyA::First),
-		callableSignature5_binding, BindingKeys(KeyA::Second));
+		callableSignature5_binding, BindingKeys(KeyA::Second),
+		callableSignature6_binding
+	);
+
+	auto a = [](auto info, auto& resultTuple) {
+		BindResult(KeyA::First, firstResult);
+
+		firstResult *= 5.f;
+		return firstResult;
+	};
+
+
 }
