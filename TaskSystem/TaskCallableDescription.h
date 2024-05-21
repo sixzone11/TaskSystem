@@ -31,6 +31,15 @@ struct BindingKeyList {};
 #define BindingKeys(Key, ...) BindingKeyList<Key, __VA_ARGS__>{}
 //#define BindingKeys(Key, ...) tuple<Key, __VA_ARGS__>{}
 
+
+///////////////////////////////////////////////////////////////////////
+// deferred_substitution
+
+struct deferred_substitution {};
+
+template<typename T>
+constexpr bool is_deferred_substitution_v = is_same_v<T, deferred_substitution>;
+
 ///////////////////////////////////////////////////////////////////////
 // pseudo_void
 
@@ -108,6 +117,8 @@ struct CallableInternalTypes;
 template<typename Ret, typename... Params>
 struct CallableInternalTypes<Ret(*)(Params...)>
 {
+	constexpr static bool deferred_substitute = false;
+
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
 	using ParamTypeTuple = tuple<Params... >;
 
@@ -119,6 +130,8 @@ struct CallableInternalTypes<Ret(*)(Params...)>
 template<typename Type, typename Ret, typename... Params>
 struct CallableInternalTypes<Ret(Type::*)(Params...) const>
 {
+	constexpr static bool deferred_substitute = false;
+
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
 	using ParamTypeTuple = tuple<Params... >;
 
@@ -128,6 +141,8 @@ struct CallableInternalTypes<Ret(Type::*)(Params...) const>
 template<typename Type, typename Ret, typename... Params>
 struct CallableInternalTypes<Ret(Type::*)(Params...)>
 {
+	constexpr static bool deferred_substitute = false;
+
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
 	using ParamTypeTuple = tuple<Params... >;
 
@@ -138,29 +153,52 @@ template<typename Callable>
 struct CallableInternalTypes<Callable,
 	void_t<decltype(&Callable::operator())>> // Note(jiman): [SFINAE] function-call operator가 decltype으로 확정 가능한 형태만 허용.
 {
+	constexpr static bool deferred_substitute = false;
+
 	using RetType = typename CallableInternalTypes<decltype(&Callable::operator())>::RetType;
 	using ParamTypeTuple = typename CallableInternalTypes<decltype(&Callable::operator())>::ParamTypeTuple;
+
 	using OriginalSignature = typename CallableInternalTypes<decltype(&Callable::operator())>::OriginalSignature;
 };
 
 struct LambdaTaskIdentifier {};
 
-template<typename Type, typename Ret, typename... Params>
-struct CallableInternalTypes<Ret(Type::*)(LambdaTaskIdentifier, Params...) const>
+template<typename Type, typename Ret, typename KeyTuple, typename ResultTuple>
+struct CallableInternalTypes<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&) const>
 {
-	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
-	using ParamTypeTuple = tuple<Params... >;
+	constexpr static bool deferred_substitute = false;
 
-	using OriginalSignature = CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...>;
+	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
+	using ParamTypeTuple = tuple<KeyTuple, ResultTuple&>;
+
+	using OriginalSignature = CallableSignature<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&) const, Ret, LambdaTaskIdentifier, KeyTuple, ResultTuple&>;
 };
+
+template<typename Type, typename Ret, typename KeyTuple, typename ResultTuple>
+constexpr auto makeCallableInternalTypeByFunction(Ret(Type::*f)(LambdaTaskIdentifier, KeyTuple, ResultTuple&) const)
+{
+	return CallableInternalTypes<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&) const> {};
+}
 
 template<typename Callable, typename>
 struct CallableInternalTypes
 //	: CallableInternalTypes<Callable, decltype(&Callable::operator())> {};
 {
-	using RetType = typename CallableInternalTypes<decltype(&Callable::operator())>::RetType;
-	using ParamTypeTuple = typename CallableInternalTypes<decltype(&Callable::operator())>::ParamTypeTuple;
-	using OriginalSignature = typename CallableInternalTypes<decltype(&Callable::operator())>::OriginalSignature;
+	constexpr static bool deferred_substitute = true;
+
+	using RetType = deferred_substitution;
+	using ParamTypeTuple = deferred_substitution;
+	using OriginalSignature = deferred_substitution;
+
+	//using RetType = typename decltype(makeCallableInternalTypeByFunction<Callable, int, tuple<BindingKey_None, BindingKey_None>, tuple<>>(&(Callable::operator())))::RetType;
+	
+	//using RetType = typename decltype(makeCallableInternalTypeByFunction(&(Callable::operator())))::RetType;
+	//using ParamTypeTuple = typename decltype(makeCallableInternalTypeByFunction(&(Callable::operator())))::ParamTypeTuple;
+	//using OriginalSignature = typename decltype(makeCallableInternalTypeByFunction(&(Callable::operator())))::OriginalSignature;
+	
+	//using RetType = typename CallableInternalTypes<&(Callable::operator())>::RetType;
+	//using ParamTypeTuple = typename CallableInternalTypes<&(Callable::operator())>::ParamTypeTuple;
+	//using OriginalSignature = typename CallableInternalTypes<&(Callable::operator())>::OriginalSignature;
 };
 
 ///////////////////////////////////////////////////////////////////////
@@ -195,6 +233,8 @@ struct SelectBindingSlots : select_binding_slots<0, index_sequence<>, Tuple> {};
 template<typename Callable, typename Ret, typename... Args>
 struct CallableSignature
 {
+	constexpr static bool deferred_substitute = CallableInternalTypes<Callable>::deferred_substitute;
+
 	using RetType = typename CallableInternalTypes<Callable>::RetType;
 	using ParamTypeTuple = typename CallableInternalTypes<Callable>::ParamTypeTuple;
 	using ArgTypeTuple = tuple<Args...>;
@@ -298,8 +338,8 @@ struct BindingSlotTypeChecker<tuple<ArgsOriginal...>, tuple<ArgsGiven...>>
 template<typename ReturnTypeTuple, typename KeyTypeTuple, typename... CallableSignatureTs>
 struct CallableInfo;
 
-#define CurrentReturnTypeTuple decltype(tuple_cat(std::declval<ReturnTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::RetType>>()))
-#define CurrentKeyTypeTuple decltype(tuple_cat(std::declval<KeyTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::KeyType>>()))
+#define CurrentReturnTypeTuple	decltype(tuple_cat(std::declval<ReturnTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::RetType>>()))
+#define CurrentKeyTypeTuple		decltype(tuple_cat(std::declval<KeyTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::KeyType>>()))
 
 ///////////////////////////////////////////////////////////////////////
 // CallableInfo
@@ -307,6 +347,7 @@ struct CallableInfo;
 template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT>
 struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 {
+	static_assert(CallableSignatureT::deferred_substitute == false, "substitution is not finished");
 	static_assert(is_same_v<typename CallableSignatureT::KeyType, BindingKey_None> ||
 		tuple_size_v<KeyTypeTupleT> == 0 ||
 		find_type_in_tuple<typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == ~0ull, "Failed to makeCallableInfo since key is duplicated.");
