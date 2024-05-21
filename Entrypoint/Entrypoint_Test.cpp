@@ -164,17 +164,21 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	Task(isExist, filePath);
 
 
-	Chain(
-		Task<KeyA::Forth>(testResultInt),
-		//Task( [ readResult = get(KeyA::Forth), memory = getRef(KeyA::Third()) ] ()
-		Task([](tresult<KeyA::Forth> readResult)
-			{
-				if (readResult != 0)
-					return std::vector<char>();
-				else
-					return std::vector<char>();
-			})
-	);
+	//Chain(
+	//	Task<KeyA::Forth>(testResultInt),
+	//	//Task( [ readResult = get(KeyA::Forth), memory = getRef(KeyA::Third()) ] ()
+	//	Task([](tresult<KeyA::Forth> readResult)
+	//		{
+	//			if (readResult != 0)
+	//				return std::vector<char>();
+	//			else
+	//				return std::vector<char>();
+	//		})
+	//);
+
+	auto lambdaTest = [](auto test1, auto test2) {
+
+	};
 
 	// 1. 중첩 체인, 정션에서 어떻게 CallableInfo 를 구성하고 그 제약을 설정하게 할 것인지.
 	// 2. 실제 데이터가 오가기 위한 메모리 확보 및 공간 연결 구성
