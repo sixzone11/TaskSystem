@@ -134,6 +134,26 @@ struct CallableInternalTypes<Ret(Type::*)(Params...)>
 	using OriginalSignature = CallableSignature<Ret(Type::*)(Params...), Ret, Params...>;
 };
 
+template<typename Callable>
+struct CallableInternalTypes<Callable,
+	void_t<decltype(&Callable::operator())>> // Note(jiman): [SFINAE] function-call operator가 decltype으로 확정 가능한 형태만 허용.
+{
+	using RetType = typename CallableInternalTypes<decltype(&Callable::operator())>::RetType;
+	using ParamTypeTuple = typename CallableInternalTypes<decltype(&Callable::operator())>::ParamTypeTuple;
+	using OriginalSignature = typename CallableInternalTypes<decltype(&Callable::operator())>::OriginalSignature;
+};
+
+struct LambdaTaskIdentifier {};
+
+template<typename Type, typename Ret, typename... Params>
+struct CallableInternalTypes<Ret(Type::*)(LambdaTaskIdentifier, Params...) const>
+{
+	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
+	using ParamTypeTuple = tuple<Params... >;
+
+	using OriginalSignature = CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...>;
+};
+
 template<typename Callable, typename>
 struct CallableInternalTypes
 //	: CallableInternalTypes<Callable, decltype(&Callable::operator())> {};

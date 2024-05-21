@@ -24,6 +24,7 @@ namespace KeyA {
 
 struct TESTA {};
 
+#define BindResult(Key, Var)	auto Var = get<find_type_in_tuple<KeyA::First, decltype(info)>::value>(resultTuple)
 
 void tes2222t()
 {
@@ -40,7 +41,7 @@ void tes2222t()
 	//	{
 	//		return param * 4.0;
 	//	});
-	auto callableSignature6_binding = makeCallableSignature([]<typename A, typename B>(TESTA, A info, B& resultTuple)
+	auto callableSignature6_binding = makeCallableSignature([](LambdaTaskIdentifier, auto info, auto& resultTuple)
 		{
 			BindResult(KeyA::First, param);
 			return param * 4.0;
@@ -64,10 +65,13 @@ void tes2222t()
 		callableSignature4_binding, BindingKeys(KeyA::First),
 		callableSignature3_binding, BindingKeys(SampleKey, KeyA::First),
 		callableSignature2_binding, BindingKeys(SampleKey, KeyA::First),
+		//callableSignature5_binding, BindingKeys(KeyA::Second)
 		callableSignature5_binding, BindingKeys(KeyA::Second),
 		callableSignature6_binding
 	);
 
+
+	auto resultData = make_tuple(5, 3, 1.f);
 	auto a = [](auto info, auto& resultTuple) {
 		BindResult(KeyA::First, firstResult);
 
@@ -75,5 +79,5 @@ void tes2222t()
 		return firstResult;
 	};
 
-
+	a(tuple<KeyA::Third, KeyA::Second, KeyA::First>(), resultData);
 }
