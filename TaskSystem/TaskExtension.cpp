@@ -41,11 +41,22 @@ void tes2222t()
 	//	{
 	//		return param * 4.0;
 	//	});
+
+	std::tuple<int, float> testTupleValue;
+
 	auto callableSignature6_binding = makeCallableSignature([](LambdaTaskIdentifier, auto info, auto& resultTuple)
 		{
 			BindResult(KeyA::First, param);
 			return param * 4.0;
 		});
+
+	//auto aaaaa = [](LambdaTaskIdentifier, /*tuple<KeyA::Second, KeyA::First>*/ auto info, /*tuple<int, float>*/ auto& resultTuple)
+	//{
+	//	BindResult(KeyA::First, param);
+	//	return param * 4.0;
+	//};
+
+	//makeCallableInternalTypeByFunction(&decltype(aaaaa)::operator()());
 
 	auto callableInfo1 = makeCallableInfo(
 		callableSignature0,
