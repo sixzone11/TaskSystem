@@ -117,7 +117,8 @@ struct CallableInternalTypes;
 template<typename Ret, typename... Params>
 struct CallableInternalTypes<Ret(*)(Params...)>
 {
-	constexpr static bool deferred_substitute = false;
+	constexpr static bool is_resolved = true;
+	using Callable = Ret(*)(Params...);
 
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
 	using ParamTypeTuple = tuple<Params... >;
@@ -130,7 +131,8 @@ struct CallableInternalTypes<Ret(*)(Params...)>
 template<typename Type, typename Ret, typename... Params>
 struct CallableInternalTypes<Ret(Type::*)(Params...) const>
 {
-	constexpr static bool deferred_substitute = false;
+	constexpr static bool is_resolved = true;
+	using Callable = Ret(Type::*)(Params...) const;
 
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
 	using ParamTypeTuple = tuple<Params... >;
@@ -141,7 +143,8 @@ struct CallableInternalTypes<Ret(Type::*)(Params...) const>
 template<typename Type, typename Ret, typename... Params>
 struct CallableInternalTypes<Ret(Type::*)(Params...)>
 {
-	constexpr static bool deferred_substitute = false;
+	constexpr static bool is_resolved = true;
+	using Callable = Ret(Type::*)(Params...);
 
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
 	using ParamTypeTuple = tuple<Params... >;
@@ -149,48 +152,53 @@ struct CallableInternalTypes<Ret(Type::*)(Params...)>
 	using OriginalSignature = CallableSignature<Ret(Type::*)(Params...), Ret, Params...>;
 };
 
-template<typename Callable>
-struct CallableInternalTypes<Callable,
-	void_t<decltype(&Callable::operator())>> // Note(jiman): [SFINAE] function-call operator가 decltype으로 확정 가능한 형태만 허용.
+template<typename _Callable>
+struct CallableInternalTypes<_Callable,
+	void_t<decltype(&_Callable::operator())>> // Note(jiman): [SFINAE] function-call operator가 decltype으로 확정 가능한 형태만 허용.
 {
-	constexpr static bool deferred_substitute = false;
+	constexpr static bool is_resolved = true;
+	using Callable = _Callable;
 
-	using RetType = typename CallableInternalTypes<decltype(&Callable::operator())>::RetType;
-	using ParamTypeTuple = typename CallableInternalTypes<decltype(&Callable::operator())>::ParamTypeTuple;
+	using RetType = typename CallableInternalTypes<decltype(&_Callable::operator())>::RetType;
+	using ParamTypeTuple = typename CallableInternalTypes<decltype(&_Callable::operator())>::ParamTypeTuple;
 
-	using OriginalSignature = typename CallableInternalTypes<decltype(&Callable::operator())>::OriginalSignature;
+	using OriginalSignature = typename CallableInternalTypes<decltype(&_Callable::operator())>::OriginalSignature;
 };
 
 struct LambdaTaskIdentifier {};
 
 template<typename Type, typename Ret, typename KeyTuple, typename ResultTuple>
-struct CallableInternalTypes<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&) const>
+struct CallableInternalTypes<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&&) const>
 {
-	constexpr static bool deferred_substitute = false;
+	constexpr static bool is_resolved = true;
 
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
 	using ParamTypeTuple = tuple<KeyTuple, ResultTuple&>;
 
-	using OriginalSignature = CallableSignature<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&) const, Ret, LambdaTaskIdentifier, KeyTuple, ResultTuple&>;
+	using OriginalSignature = CallableSignature<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&&) const, Ret, LambdaTaskIdentifier, KeyTuple, ResultTuple&&>;
 };
 
-template<typename Type, typename Ret, typename KeyTuple, typename ResultTuple>
-constexpr auto makeCallableInternalTypeByFunction(Ret(Type::*f)(LambdaTaskIdentifier, KeyTuple, ResultTuple&) const)
+template<typename Type, typename KeyTuple, typename ResultTuple, typename Ret>
+constexpr auto makeCallableInternalTypeByFunction(Ret(Type::*f)(LambdaTaskIdentifier, KeyTuple, ResultTuple&&) const)
 {
-	return CallableInternalTypes<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&) const> {};
+	return CallableInternalTypes<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&&) const> {};
 }
 
-template<typename Callable, typename>
+template<typename _Callable, typename>
 struct CallableInternalTypes
 //	: CallableInternalTypes<Callable, decltype(&Callable::operator())> {};
 {
-	constexpr static bool deferred_substitute = true;
+	constexpr static bool is_resolved = false;
+	using Callable = _Callable;
 
 	using RetType = deferred_substitution;
 	using ParamTypeTuple = deferred_substitution;
 	using OriginalSignature = deferred_substitution;
 
-	//using RetType = typename decltype(makeCallableInternalTypeByFunction<Callable, int, tuple<BindingKey_None, BindingKey_None>, tuple<>>(&(Callable::operator())))::RetType;
+	//using RetType = typename decltype(makeCallableInternalTypeByFunction<
+	//	Callable, tuple<KeyA::Second, KeyA::First>, tuple<int, float>,
+	//	decltype(declval<Callable>()(LambdaTaskIdentifier(), tuple<KeyA::Second, KeyA::First>{}, tuple<int, float>{})) > (&Callable::operator()))::RetType;
+	//using RetType = typename decltype(makeCallableInternalTypeByFunction<Callable, tuple<BindingKey_None, BindingKey_None>, tuple<>>(&(Callable::operator())))::RetType;
 	
 	//using RetType = typename decltype(makeCallableInternalTypeByFunction(&(Callable::operator())))::RetType;
 	//using ParamTypeTuple = typename decltype(makeCallableInternalTypeByFunction(&(Callable::operator())))::ParamTypeTuple;
@@ -230,10 +238,11 @@ struct SelectBindingSlots : select_binding_slots<0, index_sequence<>, Tuple> {};
 ///////////////////////////////////////////////////////////////////////
 // CallableSignature
 
-template<typename Callable, typename Ret, typename... Args>
+template<typename _Callable, typename Ret, typename... Args>
 struct CallableSignature
 {
-	constexpr static bool deferred_substitute = CallableInternalTypes<Callable>::deferred_substitute;
+	using Callable = _Callable;
+	constexpr static bool is_resolved = CallableInternalTypes<Callable>::is_resolved;
 
 	using RetType = typename CallableInternalTypes<Callable>::RetType;
 	using ParamTypeTuple = typename CallableInternalTypes<Callable>::ParamTypeTuple;
@@ -270,48 +279,65 @@ struct CallableSignatureWithKey : CallableSignature<Callable, Ret, Args...>
 //template<typename Func, typename = void>
 //constexpr auto makeCallableSignature(Func&& func);
 
+// Functions
 template<typename Ret, typename... Params>
-constexpr auto makeCallableSignature(Ret(*f)(Params...))
-{
-	return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Params...> {};
-}
-
-template<typename Ret, typename... Params, typename... Args>
-constexpr auto makeCallableSignature(Ret(*f)(Params...), Args...)
-{
-	return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Args...> {};
-}
+constexpr auto makeCallableSignature(Ret(*f)(Params...))				{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
 
 template<typename Key, typename Ret, typename... Params, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
-constexpr auto makeCallableSignature(Ret(*f)(Params...))
-{
-	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {};
-}
+constexpr auto makeCallableSignature(Ret(*f)(Params...))				{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
+
+template<typename Ret, typename... Params, typename... Args>
+constexpr auto makeCallableSignature(Ret(*f)(Params...), Args...)		{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
 
 template<typename Key, typename Ret, typename... Params, typename... Args, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
-constexpr auto makeCallableSignature(Ret(*f)(Params...), Args...)
-{
-	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {};
-}
+constexpr auto makeCallableSignature(Ret(*f)(Params...), Args...)		{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
 
+// Non-static Member Functions (non-const)
+template<typename Type, typename Ret, typename... Params,
+	typename = enable_if_t< is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...))			{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
+
+template<typename Key, typename Type, typename Ret, typename... Params,
+	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...))			{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
+
+template<typename Type, typename Ret, typename... Params, typename... Args,
+	typename = enable_if_t< is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args...)	{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
+
+template<typename Key, typename Type, typename Ret, typename... Params, typename... Args,
+	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args...)	{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
+
+// Non-static Member Functions (const)
+template<typename Type, typename Ret, typename... Params,
+	typename = enable_if_t< is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const)	{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
+
+template<typename Key, typename Type, typename Ret, typename... Params,
+	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const)	{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
+
+template<typename Type, typename Ret, typename... Params, typename... Args,
+	typename = enable_if_t< is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const, Args...)	{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
+
+template<typename Key, typename Type, typename Ret, typename... Params, typename... Args,
+	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const, Args...)	{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
+
+// Callable Class (Functor, Lambda)
 template<typename Callable, typename... Args,
 	typename = std::enable_if_t<std::is_class_v<std::remove_reference_t<Callable>>>>
-constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)
-
-{
-	return CallableSignatureWithKey<BindingKey_None, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...> {};
-}
+constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)	{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...> {}; }
 
 template<typename Key, typename Callable, typename... Args,
 	typename = std::enable_if_t<
-		std::is_class_v<std::remove_reference_t<Callable>> &&
-		is_base_of_v<BindingKey, Key> >>
-constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)
-{
-	return CallableSignatureWithKey<Key, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...>;
-}
+		std::is_class_v<std::remove_reference_t<Callable>> && is_base_of_v<BindingKey, Key>
+	>>
+constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)	{ return CallableSignatureWithKey<Key, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...>; }
 
-void nothing() {}
+static void nothing() {}
 using NullCallableSignature = decltype(makeCallableSignature(nothing));
 
 template<typename OriginalTypeTupleT, typename ReturnTypeTupleT>
@@ -335,33 +361,67 @@ struct BindingSlotTypeChecker<tuple<ArgsOriginal...>, tuple<ArgsGiven...>>
 //
 ///////////////////////////////////////////////////////////////////////
 
-template<typename ReturnTypeTuple, typename KeyTypeTuple, typename... CallableSignatureTs>
+template<bool IsResolved, typename ReturnTypeTuple, typename KeyTypeTuple, typename... CallableSignatureTs>
 struct CallableInfo;
 
 #define CurrentReturnTypeTuple	decltype(tuple_cat(std::declval<ReturnTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::RetType>>()))
 #define CurrentKeyTypeTuple		decltype(tuple_cat(std::declval<KeyTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::KeyType>>()))
 
+template<typename CallableSignatureT, typename... CallableSignatureTs>
+constexpr bool isFirstSignatureResolved()
+{
+	return remove_reference_t<CallableSignatureT>::is_resolved;
+}
+
 ///////////////////////////////////////////////////////////////////////
 // CallableInfo
 
-template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT>
-struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 {
-	static_assert(CallableSignatureT::deferred_substitute == false, "substitution is not finished");
 	static_assert(is_same_v<typename CallableSignatureT::KeyType, BindingKey_None> ||
 		tuple_size_v<KeyTypeTupleT> == 0 ||
 		find_type_in_tuple<typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == ~0ull, "Failed to makeCallableInfo since key is duplicated.");
 
+	//using Callable = typename CallableSignatureT::Callable;
+	//using ResolvedCallableSignatureT = typename decltype(makeCallableInternalTypeByFunction <
+	//	Callable, KeyTypeTupleT, ReturnTypeTupleT,
+	//	decltype(declval<Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})) > (&Callable::operator()));
+
+	using CallableSignatureResolved = CallableSignatureT;
 	using ReturnTypeTuple = CurrentReturnTypeTuple;
 	using KeyTypeTuple = CurrentKeyTypeTuple;
 };
 
-template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs>
-struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
-	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
+template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT>
+struct CallableInfo<false, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
+	: CallableInfo<true, ReturnTypeTupleT, KeyTypeTupleT, decltype(makeCallableSignature<
+		typename CallableSignatureT::KeyType,
+		typename CallableSignatureT::Callable,
+		decltype(declval<typename CallableSignatureT::Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})),
+		LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
+	> (&CallableSignatureT::Callable::operator())) >
 {
+	//static_assert(CallableSignatureT::is_resolved == true, "substitution is not finished");
+	//using ResolvedCallableSignatureT = typename decltype(makeCallableSignature<
+	//	typename CallableSignatureT::KeyType,
+	//	typename CallableSignatureT::Callable,
+	//	decltype(declval<typename CallableSignatureT::Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})),
+	//	LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
+	//>(&CallableSignatureT::Callable::operator()));
+
+	//using ResolvedCallableSignatureT = typename decltype(makeCallableInternalTypeByFunction <
+	//	typename CallableSignatureT::Callable, KeyTypeTupleT, ReturnTypeTupleT,
+	//	decltype(declval<typename CallableSignatureT::Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})) > (&CallableSignatureT::Callable::operator()));
+};
+
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
+	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
+{
+	using CallableSignatureResolved = typename CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>::CallableSignatureResolved;
 	using OrderedReturnTypeTupleT = decltype(mapTuple(std::declval<ReturnTypeTupleT>(), index_sequence<Seqs...>{}));
-	using OrderedBindingSlotTypeTupleT = decltype(mapTuple(std::declval<typename CallableSignatureT::ParamTypeTuple>(), std::declval<typename CallableSignatureT::BindingSlotIndexSequence>()));
+	using OrderedBindingSlotTypeTupleT = decltype(mapTuple(std::declval<typename CallableSignatureResolved::ParamTypeTuple>(), std::declval<typename CallableSignatureResolved::BindingSlotIndexSequence>()));
 	//tuple<tuple_element<Seqs..., ReturnTypeTupleT>>::type>;
 	CallableInfo()
 	{
@@ -370,29 +430,29 @@ struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_s
 	}
 };
 
-template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs>
-struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>>
-	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexTuple> {};
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>>
+	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexTuple> {};
 
-template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... CallableSignatureTs>
-struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, CallableSignatureTs...>
-	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
-	, CallableInfo<CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...> {};
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... CallableSignatureTs>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, CallableSignatureTs...>
+	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
+	, CallableInfo<isFirstSignatureResolved<CallableSignatureTs...>(), CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...> {};
 
-template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs, typename... CallableSignatureTs>
-struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>, CallableSignatureTs...>
-	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
-	, CallableInfo<CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...> {};
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs, typename... CallableSignatureTs>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>, CallableSignatureTs...>
+	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
+	, CallableInfo<isFirstSignatureResolved<CallableSignatureTs...>(), CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...> {};
 
-template<typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs, typename... CallableSignatureTs>
-struct CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>, CallableSignatureTs...>
-	: CallableInfo<ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexTuple, CallableSignatureTs...> {};
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs, typename... CallableSignatureTs>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>, CallableSignatureTs...>
+	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexTuple, CallableSignatureTs...> {};
 
 ///////////////////////////////////////////////////////////////////////
 // makeCallableInfo utility
 
-template<typename... CallableSignatures>
-auto makeCallableInfo(CallableSignatures&&... signatures)
+template<typename... CallableSignatureTs>
+auto makeCallableInfo(CallableSignatureTs&&...)
 {
-	return CallableInfo<tuple<>, tuple<>, remove_reference_t<decltype(signatures)>...>{};
+	return CallableInfo< isFirstSignatureResolved<CallableSignatureTs...>(), tuple<>, tuple<>, remove_reference_t<CallableSignatureTs>... > {};
 }
