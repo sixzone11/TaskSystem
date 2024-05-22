@@ -364,8 +364,9 @@ struct BindingSlotTypeChecker<tuple<ArgsOriginal...>, tuple<ArgsGiven...>>
 template<bool IsResolved, typename ReturnTypeTuple, typename KeyTypeTuple, typename... CallableSignatureTs>
 struct CallableInfo;
 
-#define CurrentReturnTypeTuple	decltype(tuple_cat(std::declval<ReturnTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::RetType>>()))
-#define CurrentKeyTypeTuple		decltype(tuple_cat(std::declval<KeyTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::KeyType>>()))
+#define CurrentReturnTypeTupleSelf	decltype(tuple_cat(std::declval<ReturnTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::RetType>>()))
+#define CurrentReturnTypeTuple		decltype(tuple_cat(std::declval<ReturnTypeTupleT>(), std::declval<tuple<typename CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>::CallableSignatureResolved::RetType>>()))
+#define CurrentKeyTypeTuple			decltype(tuple_cat(std::declval<KeyTypeTupleT>(), std::declval<tuple<typename CallableSignatureT::KeyType>>()))
 
 template<typename CallableSignatureT, typename... CallableSignatureTs>
 constexpr bool isFirstSignatureResolved()
@@ -389,7 +390,7 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 	//	decltype(declval<Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})) > (&Callable::operator()));
 
 	using CallableSignatureResolved = CallableSignatureT;
-	using ReturnTypeTuple = CurrentReturnTypeTuple;
+	using ReturnTypeTuple = CurrentReturnTypeTupleSelf;
 	using KeyTypeTuple = CurrentKeyTypeTuple;
 };
 
