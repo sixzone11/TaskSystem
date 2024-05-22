@@ -141,26 +141,11 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	Chain(
 		Task(isExist, filePath),
 		Task<KeyA::First>(openFile, filePath),
-		Task<KeyA::Second>(getSize, BindingSlot()), KeyList(KeyA::First),
-		Task<KeyA::Third>(allocateMemory, BindingSlot()), KeyList(KeyA::Second),
-		Task<KeyA::Forth>(readFile, BindingSlot(), BindingSlot(), BindingSlot()), KeyList(KeyA::First, KeyA::Third, KeyA::Second),
-		Task([](int readResult, std::vector<char>& memory)
-			{
-				if (readResult != 0)
-					return std::vector<char>();
-				else
-					return memory;
-			}, BindingSlot(), BindingSlot()), KeyList(KeyA::Forth, KeyA::Third)
-		);
-
-	Chain(
-		Task(isExist, filePath),
-		Task<KeyA::First>(openFile, filePath),
 		Task<KeyA::Second>(getSize, KeyA::First()),
 		Task<KeyA::Third>(allocateMemory, KeyA::Second()),
 		Task<KeyA::Forth>(readFile, KeyA::First(), KeyA::Third(), KeyA::Second()),
 		Task<KeyA::Fifth>( TaskBlock() {
-			int readResult = GetResult(KeyA::Forth);
+			int& readResult = GetResult(KeyA::Forth);
 			std::vector<char>& memory = GetResult(KeyA::Third);
 
 			if (readResult != 0)
@@ -173,7 +158,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	auto getFilePath = [](const char* path) { return path; };
 
 	auto chainConnectedTaskWithArg = Chain(
-		Task([filePath, getFilePath]()
+		Task<KeyA::First>(TaskBlock(filePath, getFilePath)
 			{
 				if (filePath == nullptr)
 					return (const char*)nullptr;
@@ -183,30 +168,14 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 
 				return getFilePath(filePath);
 			}),
-		Task(openFile, BindingSlot())/* delayed<0>(),*/
+		Task(openFile, KeyA::First())
 		);
 
 	Task(isExist, filePath);
 
 
-	//Chain(
-	//	Task<KeyA::Forth>(testResultInt),
-	//	//Task( [ readResult = get(KeyA::Forth), memory = getRef(KeyA::Third()) ] ()
-	//	Task([](tresult<KeyA::Forth> readResult)
-	//		{
-	//			if (readResult != 0)
-	//				return std::vector<char>();
-	//			else
-	//				return std::vector<char>();
-	//		})
-	//);
-
-	auto lambdaTest = [](auto test1, auto test2) {
-
-	};
-
-	// 1. 중첩 체인, 정션에서 어떻게 CallableInfo 를 구성하고 그 제약을 설정하게 할 것인지.
-	// 2. 실제 데이터가 오가기 위한 메모리 확보 및 공간 연결 구성
+	// [x] 1. 중첩 체인, 정션에서 어떻게 CallableInfo 를 구성하고 그 제약을 설정하게 할 것인지.
+	// [ ] 2. 실제 데이터가 오가기 위한 메모리 확보 및 공간 연결 구성
 
 	//auto openReadAndCopyFromItIfExist = Chain(
 	//	Task(isExist, filePath),
