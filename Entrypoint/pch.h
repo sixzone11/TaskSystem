@@ -444,6 +444,18 @@ constexpr std::integral_constant<unsigned, sizeof ...(ParamTypes)> getParameterC
 	return std::integral_constant<unsigned, sizeof ...(ParamTypes)>{};
 }
 
+template <typename Type, typename RetType, typename ... ParamTypes>
+constexpr std::integral_constant<unsigned, sizeof ...(ParamTypes)> getParameterCount(RetType(Type::*f)(ParamTypes ...), FunctionTag)
+{
+	return std::integral_constant<unsigned, sizeof ...(ParamTypes) + 1>{};
+}
+
+template <typename Type, typename RetType, typename ... ParamTypes>
+constexpr std::integral_constant<unsigned, sizeof ...(ParamTypes)> getParameterCount(RetType(Type::* f)(ParamTypes ...) const, FunctionTag)
+{
+	return std::integral_constant<unsigned, sizeof ...(ParamTypes) + 1>{};
+}
+
 template<typename Lambda>
 constexpr std::integral_constant<unsigned, lambda_details<std::remove_reference_t<Lambda>>::minimum_argument_count> getParameterCount(Lambda&& lambda, LambdaTag)
 {
@@ -466,7 +478,7 @@ struct TaskWriter
 	template<typename Func, typename... ArgTypes>
 	static auto task(Func&& func, ArgTypes&&... args)
 	{
-		static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_function_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
+		static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_function_v<std::remove_reference_t<Func>> || std::is_member_function_pointer_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
 		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
 		using CallableSignature = decltype(makeCallableSignature(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
 		return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
@@ -475,7 +487,7 @@ struct TaskWriter
 	template<typename Key, typename Func, typename... ArgTypes>
 	static auto task(Func&& func, ArgTypes&&... args)
 	{
-		static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_function_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
+		static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_function_v<std::remove_reference_t<Func>> || std::is_member_function_pointer_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
 		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
 		using CallableSignature = decltype(makeCallableSignature<Key>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
 		return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});

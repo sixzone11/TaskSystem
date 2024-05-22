@@ -130,6 +130,14 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	if (isExist(filePath) == false)
 		return std::vector<char>();
 
+	// Member Function Test
+	struct MemberFunctionTest
+	{
+		bool func(const char*) { return false; }
+	};
+	MemberFunctionTest memberFunctionTest;
+	auto testTask = Task(&MemberFunctionTest::func, &memberFunctionTest);
+
 	Chain(
 		Task(isExist, filePath),
 		Task<KeyA::First>(openFile, filePath),
