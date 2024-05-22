@@ -24,7 +24,7 @@ namespace KeyA {
 
 struct TESTA {};
 
-#define BindResult(Key, Var)	auto Var = get<find_type_in_tuple<KeyA::First, decltype(info)>::value>(resultTuple)
+#define BindResult(Key, Var)	auto Var = get<find_type_in_tuple<Key, decltype(info)>::value>(resultTuple)
 
 void tes2222t()
 {
@@ -44,7 +44,7 @@ void tes2222t()
 
 	std::tuple<int, float> testTupleValue;
 
-	auto callableSignature6_binding = makeCallableSignature([](LambdaTaskIdentifier, auto info, auto& resultTuple)
+	auto callableSignature6_binding = makeCallableSignature([](LambdaTaskIdentifier, auto info, auto&& resultTuple)
 		{
 			BindResult(KeyA::First, param);
 			return param * 4.0;
