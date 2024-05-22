@@ -457,3 +457,11 @@ auto makeCallableInfo(CallableSignatureTs&&...)
 {
 	return CallableInfo< isFirstSignatureResolved<CallableSignatureTs...>(), tuple<>, tuple<>, remove_reference_t<CallableSignatureTs>... > {};
 }
+
+///////////////////////////////////////////////////////////////////////
+// TaskBlock
+
+#define TaskBlock(...)				[ __VA_ARGS__ ] (LambdaTaskIdentifier, auto info, auto&& resultTuple)
+#define GetResult(Key)				std::get<find_type_in_tuple<Key, decltype(info)>::value>(resultTuple)
+#define BindResult(Key, Var)		Var = GetResult(Key)
+#define AutoBindResult(Key, Var)	auto BindResult(Key, Var)

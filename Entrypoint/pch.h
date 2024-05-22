@@ -431,11 +431,11 @@ struct TaskDefine
 struct FunctionTag {};
 struct LambdaTag {};
 
-template<bool isFunction = true>
-struct CallableAccessor { using Tag = FunctionTag; };
+template<bool isCallableClass = true>
+struct CallableAccessor { using Tag = LambdaTag; };
 
 template<>
-struct CallableAccessor<false> { using Tag = LambdaTag; };
+struct CallableAccessor<false> { using Tag = FunctionTag; };
 
 
 template <typename RetType, typename ... ParamTypes>
@@ -478,16 +478,13 @@ struct TaskWriter
 	template<typename Func, typename... ArgTypes>
 	static auto task(Func&& func, ArgTypes&&... args)
 	{
-		static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_function_v<std::remove_reference_t<Func>> || std::is_member_function_pointer_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
-		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
-		using CallableSignature = decltype(makeCallableSignature(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
-		return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
+		return task<BindingKey_None>(std::forward<Func>(func), std::forward<ArgTypes>(args)...);
 	}
 
 	template<typename Key, typename Func, typename... ArgTypes>
 	static auto task(Func&& func, ArgTypes&&... args)
 	{
-		static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_function_v<std::remove_reference_t<Func>> || std::is_member_function_pointer_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
+		//static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_class_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
 		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
 		using CallableSignature = decltype(makeCallableSignature<Key>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
 		return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
@@ -499,9 +496,6 @@ struct TaskWriter
 	template<typename... TaskList>
 	static auto junction(TaskList&&... list);
 };
-
-#define TaskBlock(...)			[ __VA_ARGS__ ] (auto info, auto& resultTuple)
-#define BindResult(Key, Var)	auto Var = get<find_type_in_tuple<KeyA::First, decltype(info)>::value>(resultTuple)
 
 template<typename... TaskList>
 struct CalcNumTaskManifests;
