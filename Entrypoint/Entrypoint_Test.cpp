@@ -125,6 +125,12 @@ namespace KeyA {
 	struct Fifth : BindingKey {};
 }
 
+namespace KeyB {
+	struct First : BindingKey {};
+	struct Second : BindingKey {};
+	struct Third : BindingKey {};
+}
+
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 {
 	if (isExist(filePath) == false)
@@ -138,7 +144,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	MemberFunctionTest memberFunctionTest;
 	auto testTask = Task(&MemberFunctionTest::func, &memberFunctionTest);
 
-	Chain(
+	auto openFileTaskChainA = Chain(
 		Task(isExist, filePath),
 		Task<KeyA::First>(openFile, filePath),
 		Task<KeyA::Second>(getSize, KeyA::First()),
@@ -158,7 +164,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	auto getFilePath = [](const char* path) { return path; };
 
 	auto chainConnectedTaskWithArg = Chain(
-		Task<KeyA::First>(TaskBlock(filePath, getFilePath)
+		Task<KeyB::First>(TaskBlock(filePath, getFilePath)
 			{
 				if (filePath == nullptr)
 					return (const char*)nullptr;
@@ -168,7 +174,20 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 
 				return getFilePath(filePath);
 			}),
-		Task(openFile, KeyA::First())
+		Task<KeyB::Second>(TaskBlock() {
+				return openFile(GetResult(KeyB::First));
+			}),
+		std::move(openFileTaskChainA),
+		Task<KeyB::Third>( TaskBlock() {
+				void* readFileFromB = GetResult(KeyB::Second);
+				int& readResult = GetResult(KeyA::Forth);
+				std::vector<char>& memory = GetResult(KeyA::Third);
+
+				if (readResult != 0)
+					return std::vector<char>();
+				else
+					return memory;
+			})
 		);
 
 	Task(isExist, filePath);
