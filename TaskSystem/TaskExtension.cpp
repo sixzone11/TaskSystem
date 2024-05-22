@@ -20,11 +20,10 @@ namespace KeyA {
 	struct First : BindingKey {};
 	struct Second : BindingKey {};
 	struct Third : BindingKey {};
+	struct Forth : BindingKey {};
 }
 
 struct TESTA {};
-
-#define BindResult(Key, Var)	auto Var = get<find_type_in_tuple<Key, decltype(info)>::value>(resultTuple)
 
 void tes2222t()
 {
@@ -44,10 +43,12 @@ void tes2222t()
 
 	std::tuple<int, float> testTupleValue;
 
-	auto callableSignature6_binding = makeCallableSignature([](LambdaTaskIdentifier, auto info, auto&& resultTuple)
+	auto callableSignature6_binding = makeCallableSignature<KeyA::Forth>([](LambdaTaskIdentifier, auto info, auto&& resultTuple)
 		{
-			BindResult(KeyA::First, param);
-			return param * 4.0;
+			AutoBindResult(KeyA::First, param);
+			AutoBindResult(SampleKey, param2);
+			AutoBindResult(KeyA::Second, param3);
+			return param * 4.0f;
 		});
 
 	//auto aaaaa = [](LambdaTaskIdentifier, /*tuple<KeyA::Second, KeyA::First>*/ auto info, /*tuple<int, float>*/ auto& resultTuple)
@@ -78,13 +79,19 @@ void tes2222t()
 		callableSignature2_binding, BindingKeys(SampleKey, KeyA::First),
 		//callableSignature5_binding, BindingKeys(KeyA::Second)
 		callableSignature5_binding, BindingKeys(KeyA::Second),
-		callableSignature6_binding
-	);
+		callableSignature6_binding,
+		callableSignature4_binding, BindingKeys(KeyA::Forth)
+		);
+
+
+	//auto callableInfo4 = makeCallableInfo(
+	//	callableSignature6_binding
+	//);
 
 
 	auto resultData = make_tuple(5, 3, 1.f);
 	auto a = [](auto info, auto& resultTuple) {
-		BindResult(KeyA::First, firstResult);
+		AutoBindResult(KeyA::First, firstResult);
 
 		firstResult *= 5.f;
 		return firstResult;

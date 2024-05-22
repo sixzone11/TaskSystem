@@ -153,6 +153,23 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 			}, BindingSlot(), BindingSlot()), KeyList(KeyA::Forth, KeyA::Third)
 		);
 
+	Chain(
+		Task(isExist, filePath),
+		Task<KeyA::First>(openFile, filePath),
+		Task<KeyA::Second>(getSize, KeyA::First()),
+		Task<KeyA::Third>(allocateMemory, KeyA::Second()),
+		Task<KeyA::Forth>(readFile, KeyA::First(), KeyA::Third(), KeyA::Second()),
+		Task<KeyA::Fifth>( TaskBlock() {
+			int readResult = GetResult(KeyA::Forth);
+			std::vector<char>& memory = GetResult(KeyA::Third);
+
+			if (readResult != 0)
+				return std::vector<char>();
+			else
+				return memory;
+		})
+	);
+
 	auto getFilePath = [](const char* path) { return path; };
 
 	auto chainConnectedTaskWithArg = Chain(
