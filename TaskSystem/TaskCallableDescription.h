@@ -335,7 +335,7 @@ template<typename Key, typename Callable, typename... Args,
 	typename = std::enable_if_t<
 		std::is_class_v<std::remove_reference_t<Callable>> && is_base_of_v<BindingKey, Key>
 	>>
-constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)	{ return CallableSignatureWithKey<Key, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...>; }
+constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)	{ return CallableSignatureWithKey<Key, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...> {}; }
 
 static void nothing() {}
 using NullCallableSignature = decltype(makeCallableSignature(nothing));
