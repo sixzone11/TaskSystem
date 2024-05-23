@@ -470,9 +470,23 @@ auto makeCallableInfo(CallableSignatureTs&&...)
 }
 
 ///////////////////////////////////////////////////////////////////////
-// TaskBlock
+// ProcessBlock
 
-#define TaskBlock(...)				[ __VA_ARGS__ ] (LambdaTaskIdentifier, auto info, auto&& resultTuple)
+struct __Task_Control {};
+struct __Task_Condition : __Task_Control {};
+struct __Task_ConditionCancel : __Task_Control {};
+struct __Task_WaitWhile : __Task_Control {};
+
+struct __Task_SwitchDefault {};
+
+#define ProcessBlock(...)			[ __VA_ARGS__ ] (LambdaTaskIdentifier, auto info, auto&& resultTuple)
+#define ConditionExpression(...)	[=] (LambdaTaskIdentifier, auto info, auto&& resultTuple) -> const bool { return (__VA_ARGS__) ; }
+#define Condition_Skip(...)			__Task_Condition{}, ConditionExpression(__VA_ARGS__)
+#define Condition_Cancel(...)		__Task_ConditionCancel{}, ConditionExpression(__VA_ARGS__)
+#define WaitWhile(...)				__Task_WaitWhile{}, ConditionExpression(__VA_ARGS__)
+
 #define GetResult(Key)				std::get<find_type_in_tuple<Key, decltype(info)>::value>(resultTuple)
 #define BindResult(Key, Var)		Var = GetResult(Key)
 #define AutoBindResult(Key, Var)	auto BindResult(Key, Var)
+
+#define TaskSwitchDefault			__Task_SwitchDefault{}

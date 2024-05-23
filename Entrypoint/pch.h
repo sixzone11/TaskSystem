@@ -422,7 +422,7 @@ enum class TaskResult : uint32_t;
 struct TaskDefine
 {
 	const char* _taskName;
-	uint32_t _testValue[16]{};
+	//uint32_t _testValue[16]{};
 	//TaskExecution _execution;
 	//TaskExecutePoint _executePoint = {};
 };
@@ -475,18 +475,37 @@ struct TaskWriter
 		return std::make_tuple(TaskDefine{ taskName }, TaskMeta{}, NullCallableSignature{});
 	}
 
-	template<typename Func, typename... ArgTypes>
-	static auto task(Func&& func, ArgTypes&&... args)
-	{
-		return task<BindingKey_None>(std::forward<Func>(func), std::forward<ArgTypes>(args)...);
+// Note(jiman): concept을 쓸 수 없으니 비슷하게라도 만들고 싶은데...
+// #define TaskControl(T) std::enable_if_t<std::is_base_of_v<__Task_Control, T>, T>
+// #define TaskNoControl(T) std::enable_if_t<std::is_base_of_v<__Task_Control, T> == false, T>
+
+	template<typename BindingKeyT = BindingKey_None, typename Expression0, typename Expression1, typename Func, typename... ArgTypes>
+	static auto task(__Task_ConditionCancel, Expression0&& expression0, __Task_WaitWhile, Expression1&& expression1, Func&& func, ArgTypes&&... args) {
+		return task<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...);
+	}
+	template<typename BindingKeyT = BindingKey_None, typename Expression0, typename Expression1, typename Func, typename... ArgTypes>
+	static auto task(__Task_Condition, Expression0&& expression0, __Task_WaitWhile, Expression1&& expression1, Func&& func, ArgTypes&&... args) {
+		return task<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...);
+	}
+	template<typename BindingKeyT = BindingKey_None, typename Expression0, typename Func, typename... ArgTypes>
+	static auto task(__Task_Condition, Expression0&& expression0, Func&& func, ArgTypes&&... args) {
+		return task<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...);
+	}
+	template<typename BindingKeyT = BindingKey_None, typename Expression0, typename Func, typename... ArgTypes>
+	static auto task(__Task_ConditionCancel, Expression0&& expression0, Func&& func, ArgTypes&&... args) {
+		return task<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...);
+	}
+	template<typename BindingKeyT = BindingKey_None, typename Expression0, typename Func, typename... ArgTypes>
+	static auto task(__Task_WaitWhile, Expression0&& expression0, Func&& func, ArgTypes&&... args) {
+		return task<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...);
 	}
 
-	template<typename Key, typename Func, typename... ArgTypes>
+	template<typename BindingKeyT = BindingKey_None, typename Func, typename... ArgTypes>
 	static auto task(Func&& func, ArgTypes&&... args)
 	{
 		//static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_class_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
 		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
-		using CallableSignature = decltype(makeCallableSignature<Key>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
+		using CallableSignature = decltype(makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
 		return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
 	}
 

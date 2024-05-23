@@ -86,6 +86,8 @@ void print(const TaskWritten& taskWritten)
 #define Junction    TaskWriter::junction
 #define Task        TaskWriter::task
 
+#define SwitchTask	TaskWriter::junction
+
 #define KeyList(Key, ...) make_tuple(pseudo_void{}, pseudo_void{}, BindingKeys(Key, __VA_ARGS__))
 
 bool isExist(const char* filePath) { return true; }
@@ -131,6 +133,11 @@ namespace KeyB {
 	struct Third : BindingKey {};
 }
 
+namespace FileSystem
+{
+	bool isFileIOJobAvailable() { return false; }
+}
+
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 {
 	if (isExist(filePath) == false)
@@ -147,10 +154,10 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	auto openFileTaskChainA = Chain(
 		Task(isExist, filePath),
 		Task<KeyA::First>(openFile, filePath),
-		Task<KeyA::Second>(getSize, KeyA::First()),
+		Task<KeyA::Second>(WaitWhile(FileSystem::isFileIOJobAvailable()), getSize, KeyA::First()),
 		Task<KeyA::Third>(allocateMemory, KeyA::Second()),
 		Task<KeyA::Forth>(readFile, KeyA::First(), KeyA::Third(), KeyA::Second()),
-		Task<KeyA::Fifth>( TaskBlock() {
+		Task<KeyA::Fifth>( ProcessBlock() {
 			int& readResult = GetResult(KeyA::Forth);
 			std::vector<char>& memory = GetResult(KeyA::Third);
 
@@ -161,36 +168,41 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 		})
 	);
 
-	auto getFilePath = [](const char* path) { return path; };
+	auto integral_expression = []() { return 5; };
 
 	auto chainConnectedTaskWithArg = Chain(
-		Task<KeyB::First>(TaskBlock(filePath, getFilePath)
-			{
-				if (filePath == nullptr)
-					return (const char*)nullptr;
+		Task<KeyB::First>( ProcessBlock(filePath)
+	{
 
-				if (isExist(filePath) == false)
-					return (const char*)nullptr;
+		return isExist(filePath) ? filePath : nullptr;
 
-				return getFilePath(filePath);
-			}),
-		Task<KeyB::Second>(TaskBlock() {
-				return openFile(GetResult(KeyB::First));
-			}),
-		std::move(openFileTaskChainA),
-		Task<KeyB::Third>( TaskBlock() {
-				void* readFileFromB = GetResult(KeyB::Second);
-				int& readResult = GetResult(KeyA::Forth);
-				std::vector<char>& memory = GetResult(KeyA::Third);
+	}),
+		Task<KeyB::Second>(
+			Condition_Cancel(GetResult(KeyB::First) == nullptr),
+			WaitWhile(FileSystem::isFileIOJobAvailable() == false),
+			ProcessBlock()
+	{
 
-				if (readResult != 0)
-					return std::vector<char>();
-				else
-					return memory;
-			})
-		);
+		return openFile(GetResult(KeyB::First));
 
-	Task(isExist, filePath);
+	}),
+		Task<KeyB::Third>(
+			Condition_Cancel(GetResult(KeyB::Second) == nullptr),
+			ProcessBlock()
+	{
+
+		void* fileDescriptor = GetResult(KeyB::Second);
+		
+		size_t fileSize = getSize(fileDescriptor);
+
+		std::vector<char> memory = allocateMemory(fileSize);
+
+		int result = readFile(fileDescriptor, memory, fileSize);
+		if (result != 0)
+			memory = std::vector<char>();
+
+		return memory;
+	}));
 
 
 	// [x] 1. 중첩 체인, 정션에서 어떻게 CallableInfo 를 구성하고 그 제약을 설정하게 할 것인지.
