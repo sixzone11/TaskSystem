@@ -280,58 +280,33 @@ struct CallableSignatureWithKey : CallableSignature<Callable, Ret, Args...>
 //constexpr auto makeCallableSignature(Func&& func);
 
 // Functions
-template<typename Ret, typename... Params>
-constexpr auto makeCallableSignature(Ret(*f)(Params...))				{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
-
-template<typename Key, typename Ret, typename... Params, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
+template<typename Key = BindingKey_None, typename Ret, typename... Params, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
 constexpr auto makeCallableSignature(Ret(*f)(Params...))				{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
 
-template<typename Ret, typename... Params, typename... Args>
-constexpr auto makeCallableSignature(Ret(*f)(Params...), Args...)		{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
-
-template<typename Key, typename Ret, typename... Params, typename... Args, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
+template<typename Key = BindingKey_None, typename Ret, typename... Params, typename... Args, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
 constexpr auto makeCallableSignature(Ret(*f)(Params...), Args...)		{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
 
 // Non-static Member Functions (non-const)
-template<typename Type, typename Ret, typename... Params,
-	typename = enable_if_t< is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
-constexpr auto makeCallableSignature(Ret(Type::*f)(Params...))			{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
-
-template<typename Key, typename Type, typename Ret, typename... Params,
+template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...))			{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
 
-template<typename Type, typename Ret, typename... Params, typename... Args,
-	typename = enable_if_t< is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
-constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args...)	{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
-
-template<typename Key, typename Type, typename Ret, typename... Params, typename... Args,
+template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params, typename... Args,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args...)	{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
 
 // Non-static Member Functions (const)
-template<typename Type, typename Ret, typename... Params,
-	typename = enable_if_t< is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
-constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const)	{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
 
-template<typename Key, typename Type, typename Ret, typename... Params,
+template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const)	{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
 
-template<typename Type, typename Ret, typename... Params, typename... Args,
-	typename = enable_if_t< is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
-constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const, Args...)	{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
-
-template<typename Key, typename Type, typename Ret, typename... Params, typename... Args,
+template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params, typename... Args,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const, Args...)	{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
 
 // Callable Class (Functor, Lambda)
-template<typename Callable, typename... Args,
-	typename = std::enable_if_t<std::is_class_v<std::remove_reference_t<Callable>>>>
-constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)	{ return CallableSignatureWithKey<BindingKey_None, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...> {}; }
-
-template<typename Key, typename Callable, typename... Args,
+template<typename Key = BindingKey_None, typename Callable, typename... Args,
 	typename = std::enable_if_t<
 		std::is_class_v<std::remove_reference_t<Callable>> && is_base_of_v<BindingKey, Key>
 	>>
