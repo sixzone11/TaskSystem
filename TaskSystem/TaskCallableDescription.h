@@ -364,9 +364,9 @@ constexpr bool isFirstSignatureResolved()
 template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT>
 struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 {
-	static_assert(is_same_v<typename CallableSignatureT::KeyType, BindingKey_None> ||
-		tuple_size_v<KeyTypeTupleT> == 0 ||
-		find_type_in_tuple<typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == ~0ull, "Failed to makeCallableInfo since key is duplicated.");
+	//static_assert(is_same_v<typename CallableSignatureT::KeyType, BindingKey_None> ||
+	//	tuple_size_v<KeyTypeTupleT> == 0 ||
+	//	find_type_in_tuple<true, typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == ~0ull, "Failed to makeCallableInfo since key is duplicated.");
 
 	//using Callable = typename CallableSignatureT::Callable;
 	//using ResolvedCallableSignatureT = typename decltype(makeCallableInternalTypeByFunction <

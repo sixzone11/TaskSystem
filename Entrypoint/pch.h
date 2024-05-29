@@ -646,15 +646,13 @@ struct is_callable_signature<BindingKeyList<Keys...>> : true_type {};
 template<typename T>
 constexpr bool is_callable_signature_v = is_callable_signature<T>::value;
 
+constexpr const uint32_t IndexTaskDefine = 0;
+constexpr const uint32_t IndexTaskMeta = 1;
+constexpr const uint32_t IndexTaskCallable = 2;
+
 template<typename... TaskList>
 struct SeparateTaskList
 {
-private:
-	constexpr static const uint32_t IndexTaskDefine = 0;
-	constexpr static const uint32_t IndexTaskMeta = 1;
-	constexpr static const uint32_t IndexTaskCallable = 2;
-
-
 private:
 	template<typename T>
 	constexpr static auto make_tuple_if_not_void(T&& arg) { return std::make_tuple(std::forward<T>(arg)); }
@@ -743,5 +741,6 @@ auto TaskWriter::junction(TaskList&&... list)
 	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaJunction<TaskMetaTuple<TaskList...>>{}, TaskCallableTuple<TaskList...>{});
 }
 
+#define GetResultOfTask(Task)		std::get<find_type_in_tuple<true, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>, decltype(info)>::value>(resultTuple)
 
 #include <stdio.h>

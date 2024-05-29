@@ -98,7 +98,7 @@ int readFile(void* fileDescriptor, std::vector<char>& dstMemory, size_t size) { 
 
 int testResultInt() { return 0; }
 
-std::vector<char> openReadAndCopyFromIfExistsDirect(const char* filePath)
+std::vector<char> loadDataFromFile(const char* filePath)
 {
 	const bool bExist = isExist(filePath);
 	if (bExist == false)
@@ -117,6 +117,51 @@ std::vector<char> openReadAndCopyFromIfExistsDirect(const char* filePath)
 		return std::vector<char>();
 
 	return memory;
+}
+
+#define TaskProcessBegin(task_name, ...)	auto task_name = Task(ProcessBlock(__VA_ARGS__)
+#define TaskProcessNext(task_name, ...) ); auto task_name = Task(ProcessBlock(__VA_ARGS__)
+#define TaskProcessEnd() )
+
+std::vector<char> loadDataFromFileByTask(const char* filePath)
+{
+	auto e0 = Task(ProcessBlock(filePath)
+	{
+		return isExist(filePath);
+	});
+	auto e1 = 5;
+
+	TaskProcessBegin(t1, filePath) //auto t1 = Task(ProcessBlock(filePath)
+	{
+		return isExist(filePath) ? filePath : nullptr;
+	}
+	TaskProcessNext(t2) //auto t2 = Task(Condition_Cancel(GetResultOfTask(t1) == nullptr), ProcessBlock()
+	{
+		return openFile(GetResultOfTask(t1));
+	}
+	TaskProcessNext(t3) //auto t3 = Task(Condition_Cancel(GetResultOfTask(t2) == nullptr), ProcessBlock()
+	{
+		//bool isFileExist = GetResultOfTask(e0);
+		void* fileDescriptor = GetResultOfTask(t2);
+
+		if (fileDescriptor == nullptr)
+			return std::vector<char>();
+
+		size_t fileSize = getSize(fileDescriptor);
+
+		std::vector<char> memory = allocateMemory(fileSize);
+
+		int result = readFile(fileDescriptor, memory, fileSize);
+		if (result != 0)
+			return std::vector<char>();
+
+		return memory;
+	}
+	TaskProcessEnd();
+
+	auto openFileTasks = Dependency( move(t1), move(t2), move(t3));
+
+	return std::vector<char>();
 }
 
 namespace KeyA {
