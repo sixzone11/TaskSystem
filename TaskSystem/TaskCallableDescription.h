@@ -56,7 +56,7 @@ constexpr bool is_pseudo_void_v = is_same_v<T, pseudo_void>;
 ///////////////////////////////////////////////////////////////////////
 
 template <typename Tuple, size_t... Seqs>
-auto mapTuple(Tuple&& t, index_sequence<Seqs...>) {
+constexpr auto mapTuple(Tuple&& t, index_sequence<Seqs...>) {
 	static_assert(((tuple_size_v<Tuple> > Seqs) && ...), "Map tuple into Seq is failed since seq in Seqs is not less than size of tuple...");
 	return std::make_tuple(std::get<Seqs>(t)...);
 }
