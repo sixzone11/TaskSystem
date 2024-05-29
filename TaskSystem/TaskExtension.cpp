@@ -55,4 +55,25 @@ void tes2222t()
 		callableSignature6_binding,
 		callableSignature7_binding
 		);
+
+	auto t1 = makeCallableSignature(testFloatRet);
+	auto t2 = makeCallableSignature(test4, t1);
+	auto t3 = makeCallableSignature(ProcessBlock()
+		{
+			float param = GetResult(decltype(t1));
+			return param * 4.0f;
+		});
+	auto t4 = makeCallableSignature(ProcessBlock()
+		{
+			const float& param = GetResult(decltype(t1));
+			const float& param2 = GetResult(decltype(t3));
+			return param2 * param * 4.0f;
+		});
+
+	auto callableInfo1 = makeCallableInfo(
+		t1,
+		t2,
+		t3,
+		t4
+	);
 }

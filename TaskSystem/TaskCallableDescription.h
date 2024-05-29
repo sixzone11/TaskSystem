@@ -248,7 +248,7 @@ struct SelectBindingSlots : select_binding_slots<0, index_sequence<>, Tuple> {};
 // CallableSignature
 
 template<typename _Callable, typename Ret, typename... Args>
-struct CallableSignature
+struct CallableSignature : BindingKey
 {
 	using Callable = _Callable;
 	constexpr static bool is_resolved = CallableInternalTypes<Callable>::is_resolved;
@@ -273,7 +273,7 @@ template<typename Key, typename Callable, typename Ret, typename... Args>
 struct CallableSignatureWithKey : CallableSignature<Callable, Ret, Args...>
 {
 	static_assert(is_base_of_v<BindingKey, Key>, "Given Key is not a KeyType");
-	using KeyType = Key;
+	using KeyType = conditional_t<is_same_v<BindingKey_None, Key>, CallableSignature<Callable, Ret, Args...>, Key>;
 };
 
 ///////////////////////////////////////////////////////////////////////
@@ -397,6 +397,7 @@ struct CallableInfo<false, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 		decltype(declval<typename CallableSignatureT::Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})),
 		LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
 	> (&CallableSignatureT::Callable::operator())) >
+	//> (&CallableSignatureT::Callable::operator(), LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})) >
 {
 	//static_assert(CallableSignatureT::is_resolved == true, "substitution is not finished");
 	//using ResolvedCallableSignatureT = typename decltype(makeCallableSignature<
