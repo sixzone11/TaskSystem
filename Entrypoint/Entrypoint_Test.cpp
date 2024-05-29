@@ -82,9 +82,9 @@ void print(const TaskWritten& taskWritten)
 }
 
 
-#define Chain       TaskWriter::chain
-#define Junction    TaskWriter::junction
-#define Task        TaskWriter::task
+#define Dependency	TaskWriter::chain
+#define Concurrency	TaskWriter::junction
+#define Task		TaskWriter::task
 
 #define SwitchTask	TaskWriter::junction
 
@@ -151,7 +151,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	MemberFunctionTest memberFunctionTest;
 	auto testTask = Task(&MemberFunctionTest::func, &memberFunctionTest);
 
-	auto openFileTaskChainA = Chain(
+	auto openFileTaskChainA = Dependency(
 		Task(isExist, filePath),
 		Task<KeyA::First>(openFile, filePath),
 		Task<KeyA::Second>(WaitWhile(FileSystem::isFileIOJobAvailable()), getSize, KeyA::First()),
@@ -170,7 +170,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 
 	auto integral_expression = []() { return 5; };
 
-	auto chainConnectedTaskWithArg = Chain(
+	auto chainConnectedTaskWithArg = Dependency(
 		Task<KeyB::First>( ProcessBlock(filePath)
 	{
 
@@ -208,7 +208,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	// [x] 1. 중첩 체인, 정션에서 어떻게 CallableInfo 를 구성하고 그 제약을 설정하게 할 것인지.
 	// [ ] 2. 실제 데이터가 오가기 위한 메모리 확보 및 공간 연결 구성
 
-	//auto openReadAndCopyFromItIfExist = Chain(
+	//auto openReadAndCopyFromItIfExist = Dependency(
 	//	Task(isExist, filePath),
 	//	Branch(
 	//		ConditionalTask(TaskResult::Succeeded, "OpenFile", filePath),
@@ -232,28 +232,28 @@ void test_ver2()
 	auto debugTask = Task("Task");
 
 	auto debugChain =
-		Chain(
+		Dependency(
 			Task("0")
 			, Task("1")
 		);
 
 	auto debugJunction =
-		Junction(
+		Concurrency(
 			Task("0")
 			, Task("1")
 		);
 
 	auto debugChainAndJunction =
-		Chain(
+		Dependency(
 			Task("0")
-			, Junction(
+			, Concurrency(
 				Task("1")
 				, Task("2")
 			)
 		);
 
 	auto testChain3 =
-		Chain(
+		Dependency(
 			Task("0")
 			, Task("1")
 			, Task("2")
@@ -262,30 +262,30 @@ void test_ver2()
 		);
 
 	auto testChainOfJunctions =
-		Chain(
+		Dependency(
 			Task("0"),
-			Junction(
+			Concurrency(
 				Task("1")
 				, Task("2")
 				, Task("3")
 			)
-			, Junction(
+			, Concurrency(
 				Task("4")
 				, Task("5")
 			)
 		);
 
 	 auto testTasks =
-	     Junction(
+	     Concurrency(
 	         std::move(testChainOfJunctions),
-	         Chain(
+	         Dependency(
 	             Task("6")
-	             , Junction(
+	             , Concurrency(
 	                 Task("7")
 	                 , Task("8")
 	             )
 	         )
-	         , Chain(
+	         , Dependency(
 	             Task("9")
 	             , Task("10")
 	             , Task("11")
@@ -293,44 +293,44 @@ void test_ver2()
 	     );
 
 	auto testTasks2 =
-		Chain(
+		Dependency(
 			Task("00")
 			,
-			Junction(
+			Concurrency(
 				std::move(testChainOfJunctions),
-				Chain(
+				Dependency(
 					Task("7")
-					, Junction(
+					, Concurrency(
 						Task("8")
 						, Task("9")
 					)
 				)
-				, Chain(
+				, Dependency(
 					Task("10")
 					, Task("11")
 					, Task("12")
 				)
 			)
-			, Junction(
+			, Concurrency(
 				Task("13")
 				, Task("14")
 				, Task("15")
 			)
 		);
 
-	 auto result = Chain(
+	 auto result = Dependency(
 	 	Task("AsyncTask""1"),
-	 	Junction(
-	 		Chain(
+	 	Concurrency(
+	 		Dependency(
 	 			Task("JunctionTask""1_1"),
 	 			Task("JunctionTask""1_2")),
 	 		Task("JunctionTask""2"),
-	 		Junction(
-	 			Chain(
+	 		Concurrency(
+	 			Dependency(
 	 				Task("JunctionTask""1_1"),
 	 				Task("JunctionTask""1_2"),
-	 				Junction(
-	 					Chain(
+	 				Concurrency(
+	 					Dependency(
 	 						Task("JunctionTask""1_1"),
 	 						Task("JunctionTask""1_2")),
 	 					Task("JunctionTask""2")
@@ -338,10 +338,10 @@ void test_ver2()
 	 			Task("JunctionTask""2")
 	 		)
 	 	),
-	 	Chain(
-	 		Chain(
-	 			Chain(
-	 				Chain(
+	 	Dependency(
+	 		Dependency(
+	 			Dependency(
+	 				Dependency(
 	 					Task("AsyncTask""3"))))),
 	 	Task("AsyncTask""4"),
 	 	Task("AsyncTask""5")
@@ -349,30 +349,30 @@ void test_ver2()
 
 
 	 auto testDependenciesOfTaskss =
-		 Chain(
+		 Dependency(
 			 Task("0"),
-			 Junction(
+			 Concurrency(
 				 Task("1")
 				 , Task("2")
 				 , Task("3")
 			 )
-			 , Junction(
+			 , Concurrency(
 				 Task("4")
 				 , Task("5")
 			 )
 		 );
 
 	 auto testTask2s =
-		 Junction(
+		 Concurrency(
 			 std::move(testDependenciesOfTaskss),
-			 Chain(
+			 Dependency(
 				 Task("6")
-				 , Junction(
+				 , Concurrency(
 					 Task("7")
 					 , Task("8")
 				 )
 			 )
-			 , Chain(
+			 , Dependency(
 				 Task("9")
 				 , Task("10")
 				 , Task("11")
