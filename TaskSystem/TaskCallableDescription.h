@@ -69,34 +69,43 @@ constexpr size_t value_type_v = value_type<Value>::value;
 
 using value_type_invalid = value_type<~0ull>;
 
-template<typename FindingType, size_t Index, typename... Types>
+template<bool AllowBaseType, typename Type1, typename Type2>
+struct check_type : is_same<Type1, Type2> {};
+
+template<typename Type1, typename Type2>
+struct check_type<true, Type1, Type2> : is_base_of<Type1, Type2> {};
+
+template<bool AllowBaseType, typename Type1, typename Type2>
+constexpr bool check_type_v = check_type<AllowBaseType, Type1, Type2>::value;
+
+template<bool AllowBaseType, typename FindingType, size_t Index, typename... Types>
 struct find_type_in_types;
 
-template<typename FindingType, size_t Index, typename Type, typename... Types>
-struct find_type_in_types<FindingType, Index, Type, Types...> : conditional_t<is_same_v<FindingType, Type>, value_type<Index>, find_type_in_types<FindingType, Index + 1, Types...>> {};
+template<bool AllowBaseType, typename FindingType, size_t Index, typename Type, typename... Types>
+struct find_type_in_types<AllowBaseType, FindingType, Index, Type, Types...> : conditional_t<check_type_v<AllowBaseType, Type, FindingType>, value_type<Index>, find_type_in_types<AllowBaseType, FindingType, Index + 1, Types...>> {};
 
-template<typename FindingType, size_t Index, typename Type>
-struct find_type_in_types<FindingType, Index, Type> : conditional_t<is_same_v<FindingType, Type>, value_type<Index>, value_type_invalid> {};
+template<bool AllowBaseType, typename FindingType, size_t Index, typename Type>
+struct find_type_in_types<AllowBaseType, FindingType, Index, Type> : conditional_t<check_type_v<AllowBaseType, Type, FindingType>, value_type<Index>, value_type_invalid> {};
 
-template<typename FindingType, size_t Index>
-struct find_type_in_types<FindingType, Index> : value_type_invalid {};
+template<bool AllowBaseType, typename FindingType, size_t Index>
+struct find_type_in_types<AllowBaseType, FindingType, Index> : value_type_invalid {};
 
-template<typename FindingType, typename TypeListTuple>
+template<bool AllowBaseType, typename FindingType, typename TypeListTuple>
 struct find_type_in_tuple;
 
-template<typename FindingType, template<typename... TypeList> typename ListingType, typename... Types>
-struct find_type_in_tuple<FindingType, ListingType<Types...>>
+template<bool AllowBaseType, typename FindingType, template<typename... TypeList> typename ListingType, typename... Types>
+struct find_type_in_tuple<AllowBaseType, FindingType, ListingType<Types...>>
 {
-	constexpr static size_t value = find_type_in_types<FindingType, 0, Types...>::value;
+	constexpr static size_t value = find_type_in_types<AllowBaseType, FindingType, 0, Types...>::value;
 };
 
-template<typename TypeListTuple, typename FindingTypeTuple>
+template<bool AllowBaseType, typename TypeListTuple, typename FindingTypeTuple>
 struct FindType;
 
-template<typename TypeListTuple, template<typename... TypeList> typename ListingType, typename... FindingTypes>
-struct FindType<TypeListTuple, ListingType<FindingTypes...>>
+template<bool AllowBaseType, typename TypeListTuple, template<typename... TypeList> typename ListingType, typename... FindingTypes>
+struct FindType<AllowBaseType, TypeListTuple, ListingType<FindingTypes...>>
 {
-	using FoundIndexTuple = index_sequence< find_type_in_tuple<FindingTypes, TypeListTuple>::value ... >;
+	using FoundIndexSeq = index_sequence< find_type_in_tuple<AllowBaseType, FindingTypes, TypeListTuple>::value ... >;
 };
 
 ///////////////////////////////////////////////////////////////////////
@@ -371,7 +380,7 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 	CallableInfo()
 	{
 		using OrderedBindingSlotArgTypeTupleT = decltype(mapTuple(std::declval<typename CallableSignatureT::ArgTypeTuple>(), std::declval<typename CallableSignatureT::BindingSlotIndexSequence>()));
-		using OrderedBindingSlotArgIndexSequence = typename FindType<CurrentKeyTypeTuple, OrderedBindingSlotArgTypeTupleT>::FoundIndexTuple;
+		using OrderedBindingSlotArgIndexSequence = typename FindType<true, CurrentKeyTypeTuple, OrderedBindingSlotArgTypeTupleT>::FoundIndexSeq;
 
 		using OrderedReturnTypeTupleT = decltype(mapTuple(std::declval<ReturnTypeTupleT>(), OrderedBindingSlotArgIndexSequence{}));
 		using OrderedBindingSlotParamTypeTupleT = decltype(mapTuple(std::declval<typename CallableSignatureT::ParamTypeTuple>(), std::declval<typename CallableSignatureT::BindingSlotIndexSequence>()));
@@ -419,7 +428,7 @@ struct CallableInfo<false, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 
 //template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs>
 //struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>>
-//	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexTuple> {};
+//	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<true, CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexSeq> {};
 
 template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... CallableSignatureTs>
 struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, CallableSignatureTs...>
@@ -433,7 +442,7 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 //
 //template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs, typename... CallableSignatureTs>
 //struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>, CallableSignatureTs...>
-//	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexTuple, CallableSignatureTs...> {};
+//	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<true, CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexSeq, CallableSignatureTs...> {};
 
 ///////////////////////////////////////////////////////////////////////
 // makeCallableInfo utility
@@ -460,7 +469,7 @@ struct __Task_SwitchDefault {};
 #define Condition_Cancel(...)		__Task_ConditionCancel{}, ConditionExpression(__VA_ARGS__)
 #define WaitWhile(...)				__Task_WaitWhile{}, ConditionExpression(__VA_ARGS__)
 
-#define GetResult(Key)				std::get<find_type_in_tuple<Key, decltype(info)>::value>(resultTuple)
+#define GetResult(Key)				std::get<find_type_in_tuple<true, std::remove_reference_t<Key>, decltype(info)>::value>(resultTuple)
 #define BindResult(Key, Var)		Var = GetResult(Key)
 #define AutoBindResult(Key, Var)	auto BindResult(Key, Var)
 
