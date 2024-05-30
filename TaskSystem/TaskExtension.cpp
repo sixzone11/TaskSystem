@@ -141,6 +141,43 @@ void testIntegralSignature()
 	
 }
 
+template<const char ... chars>
+struct CharsBindingKey : BindingKey {};
+
+template<const char... CharPack>
+constexpr auto operator "" _chars()
+{
+	return CharsBindingKey<CharPack...>{};
+}
+
+void testCharPackSignature()
+{
+#define TriConCat(x, y, z)						x##y##z
+#define MakeCallableSignatureCP(CharPack, ...)	makeCallableSignature<decltype(TriConCat(0x, CharPack, _chars))>(__VA_ARGS__)
+#define GetResultFromCP(CharPack)				std::get<find_type_in_tuple<true, decltype(TriConCat(0x, CharPack, _chars)), decltype(info)>::value>(resultTuple)
+#define BindingKeyCP(CharPack)					decltype(TriConCat(0x, CharPack, _chars))()
+
+	auto t1 = MakeCallableSignatureCP(1a2bc31dfe3489, testFloatRet);
+	auto t2 = MakeCallableSignatureCP(eeeeeeee, test4, BindingKeyCP(1a2bc31dfe3489));
+
+	auto callableInfo2 = makeCallableInfo(
+		MakeCallableSignatureCP(abc0, testIntRet),
+		t1, //MakeCallableSignatureCP(1a2bc31dfe3489, testFloatRet),
+		t2, //MakeCallableSignatureCP(eeeeeeee, test4, BindingKeyCP(1a2bc31dfe3489)),
+		MakeCallableSignatureCP(3edf, test3, BindingKeyCP(abc0), BindingKeyCP(1a2bc31dfe3489)),
+		MakeCallableSignatureCP(6345634564, testVoidRet, BindingKeyCP(abc0), BindingKeyCP(1a2bc31dfe3489)),
+		MakeCallableSignatureCP(ffdefe5, test5, 3, BindingKeyCP(3edf)),
+		MakeCallableSignatureCP(aadefbd6, [](LambdaTaskIdentifier, auto info, auto&& resultTuple)
+			{
+				auto param = GetResultFromCP(1a2bc31dfe3489);
+				auto param2 = GetResultFromCP(abc0);
+				auto param3 = GetResultFromCP(3edf);
+				return param * 4.0f;
+			}),
+		MakeCallableSignatureCP(def7, test4, BindingKeyCP(aadefbd6))
+	);
+}
+
 #if _MSVC_LANG > 202000L || __cplusplus > 202000L
 
 template <typename CharT, std::size_t N>
@@ -157,33 +194,30 @@ struct basic_fixed_string
 template<basic_fixed_string>
 struct StringBindingKey : BindingKey {};
 
-template<const char ... chars>
-struct CharsBindingKey : BindingKey {};
-
 void testStringSignature()
 {
-#define MakeCallableSignatureStr(KeyStr, ...)	makeCallableSignature<StringBindingKey<KeyStr>>(__VA_ARGS__)
-#define GetResultFromStr(KeyStr)				std::get<find_type_in_tuple<true, StringBindingKey<KeyStr>, decltype(info)>::value>(resultTuple)
-#define BindingKeyStr(KeyStr)					StringBindingKey<KeyStr>()
+#define MakeCallableSignatureStr(KeyStr, ...)	makeCallableSignature<StringBindingKey<#KeyStr>>(__VA_ARGS__)
+#define GetResultFromStr(KeyStr)				std::get<find_type_in_tuple<true, StringBindingKey<#KeyStr>, decltype(info)>::value>(resultTuple)
+#define BindingKeyStr(KeyStr)					StringBindingKey<#KeyStr>()
 	
-	auto t1 = MakeCallableSignatureStr("1", testFloatRet);
-	auto t2 = MakeCallableSignatureStr("2", test4, BindingKeyStr("1"));
+	auto t1 = MakeCallableSignatureStr(process_1, testFloatRet);
+	auto t2 = MakeCallableSignatureStr(process_2, test4, BindingKeyStr(process_1));
 
 	auto callableInfo2 = makeCallableInfo(
-		MakeCallableSignatureStr("0", testIntRet),
-		t1, //MakeCallableSignatureStr("1", testFloatRet),
-		t2, //MakeCallableSignatureStr("2", test4, BindingKeyStr("1")),
-		MakeCallableSignatureStr("3", test3, BindingKeyStr("0"), BindingKeyStr("1")),
-		MakeCallableSignatureStr("4", testVoidRet, BindingKeyStr("0"), BindingKeyStr("1")),
-		MakeCallableSignatureStr("5", test5, 3, BindingKeyStr("3")),
-		MakeCallableSignatureStr("6", [](LambdaTaskIdentifier, auto info, auto&& resultTuple)
+		MakeCallableSignatureStr(process_0, testIntRet),
+		t1, //MakeCallableSignatureStr(process_1, testFloatRet),
+		t2, //MakeCallableSignatureStr(process_2, test4, BindingKeyStr(process_1)),
+		MakeCallableSignatureStr(process_3, test3, BindingKeyStr(process_0), BindingKeyStr(process_1)),
+		MakeCallableSignatureStr(process_4, testVoidRet, BindingKeyStr(process_0), BindingKeyStr(process_1)),
+		MakeCallableSignatureStr(process_5, test5, 3, BindingKeyStr(process_3)),
+		MakeCallableSignatureStr(process_6, [](LambdaTaskIdentifier, auto info, auto&& resultTuple)
 			{
-				auto param = GetResultFromStr("1");
-				auto param2 = GetResultFromStr("0");
-				auto param3 = GetResultFromStr("3");
+				auto param = GetResultFromStr(process_1);
+				auto param2 = GetResultFromStr(process_0);
+				auto param3 = GetResultFromStr(process_3);
 				return param * 4.0f;
 			}),
-		MakeCallableSignatureStr("7", test4, BindingKeyStr("6"))
+		MakeCallableSignatureStr(process_7, test4, BindingKeyStr(process_6))
 	);
 	
 }
