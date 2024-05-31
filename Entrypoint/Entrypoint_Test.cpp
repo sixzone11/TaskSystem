@@ -1,5 +1,7 @@
 ﻿#include "pch.h"
 
+#include <TaskSystem/TaskSystem.h>
+
 template<typename T>
 struct Print {
 	struct Offsets { constexpr static const auto _var = T::_offsets; };
@@ -96,7 +98,10 @@ size_t getSize(void* fileDescriptor) { return 0; }
 std::vector<char> allocateMemory(size_t size) { return std::vector<char>(size); }
 int readFile(void* fileDescriptor, std::vector<char>& dstMemory, size_t size) { return 0; }
 
-int testResultInt() { return 0; }
+namespace FileSystem
+{
+	bool isFileIOJobAvailable() { return false; }
+}
 
 std::vector<char> loadDataFromFile(const char* filePath)
 {
@@ -119,9 +124,22 @@ std::vector<char> loadDataFromFile(const char* filePath)
 	return memory;
 }
 
-#define TaskProcessBegin(task_name, ...)	auto task_name = Task(__VA_ARGS__
-#define TaskProcessNext(task_name, ...) ); auto task_name = Task(__VA_ARGS__
+#define IsEmptyArgs__(_1, _2, _3, _4, _5, _6, _7, _8, _9, ...) _9
+#define IsEmptyArgs(...) IsEmptyArgs__(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1)
+
+#define CommaConnection_0() ,
+#define CommaConnection_1()
+#define CommaConnection_Select(N) CommaConnection_ ## N()
+#define CommaConnection_Expand(N) CommaConnection_Select(N)
+#define CommaConnection(...) CommaConnection_Expand(IsEmptyArgs(__VA_ARGS__))
+
+#define TaskProcessBegin(task_name, ...)		auto task_name = Task(__VA_ARGS__ ProcessBlock()
+#define TaskProcessNext(task_name, ...)			); auto task_name = Task(__VA_ARGS__ ProcessBlock()
 #define TaskProcessEnd() )
+
+#define Capture(...)							ProcessBlock(__VA_ARGS__)
+#define TaskProcessBeginCapture(task_name, ...)	auto task_name = Task(__VA_ARGS__
+#define TaskProcessNextCapture(task_name, ...)	); auto task_name = Task(__VA_ARGS__
 
 std::vector<char> loadDataFromFileByTask(const char* filePath)
 {
@@ -131,21 +149,23 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 	});
 	auto e1 = 5;
 
-	TaskProcessBegin(t1, ProcessBlock(filePath))
+	TaskProcessBeginCapture(t1, Capture(filePath, e1))
 	{
 		return isExist(filePath) ? filePath : nullptr;
 	}
-	TaskProcessNext(t2, Condition_Cancel(GetResultOfTask(t1) == nullptr), ProcessBlock())
+	TaskProcessNext(t2,
+		Condition_Cancel(GetResultOfTask(t1) == nullptr),
+		WaitWhile(FileSystem::isFileIOJobAvailable() == false),)
 	{
 		return openFile(GetResultOfTask(t1));
 	}
-	TaskProcessNext(t3, Condition_Cancel(GetResultOfTask(t2) == nullptr), ProcessBlock())
+	TaskProcessNext(t3)//, Condition_Cancel(GetResultOfTask(t2) == nullptr))
 	{
 		//bool isFileExist = GetResultOfTask(e0);
 		void* fileDescriptor = GetResultOfTask(t2);
 
 		if (fileDescriptor == nullptr)
-			return std::vector<char>();
+			return declval<std::vector<char>>();
 
 		size_t fileSize = getSize(fileDescriptor);
 
@@ -153,7 +173,7 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 
 		int result = readFile(fileDescriptor, memory, fileSize);
 		if (result != 0)
-			return std::vector<char>();
+			return declval<std::vector<char>>();
 
 		return memory;
 	}
@@ -176,11 +196,6 @@ namespace KeyB {
 	struct First : BindingKey {};
 	struct Second : BindingKey {};
 	struct Third : BindingKey {};
-}
-
-namespace FileSystem
-{
-	bool isFileIOJobAvailable() { return false; }
 }
 
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
@@ -431,89 +446,4 @@ void test_ver2()
 
 	print(r);
 
-}
-
-
-
-template<typename T>
-auto bind(T&& binding)
-{
-
-}
-
-template<typename T>
-struct FutureResult
-{
-	T value;
-
-	//operator T && () && { 	return value; }
-	operator T& () { return value; }
-};
-
-template<>
-struct FutureResult<void>
-{
-};
-
-template<typename RetType, typename ... ParamTypes>
-FutureResult<RetType> getFutureResult(RetType(*func)(ParamTypes...))
-{
-	return FutureResult<RetType>();
-};
-
-template<typename Type, typename RetType, typename ... ParamTypes>
-FutureResult<RetType> getFutureResult(RetType(Type::* func)(ParamTypes...))
-{
-	return FutureResult<RetType>();
-};
-
-template<typename Callable, typename = std::enable_if_t<std::is_class_v<std::remove_reference_t<Callable>>>>
-auto getFutureResult(Callable&& arg)
-{
-	return FutureResult<typename lambda_details<Callable>::RetType>();
-}
-
-template<typename PrevFunc>
-auto result(PrevFunc&& func)
-{
-	return getFutureResult(func);
-}
-
-template<size_t... Index>
-auto delayed()
-{
-	return std::make_tuple(ResultHolder{}, std::array<ResultHolder, sizeof...(Index)> {});
-}
-
-struct MemberFunctionTest
-{
-	uint32_t MemberFunctionA() { return 0; }
-};
-
-// result() 정리
-void resultTest(const char* arg)
-{
-	// Member Function Test
-	struct MemberFunctionTest
-	{
-		bool func(const char*) { return false; }
-	};
-	auto resultBoolOfMemberFunctionTest = result(&MemberFunctionTest::func);
-
-	// Functor Test
-	//	result() 를 통해 선택 시 더 인자가 적은 operator()가 선택됨
-	struct FunctorTest
-	{
-		int operator()(double, double, double) { return true; }
-		//bool operator()(const char*, int) { return true; }
-	} functorTest;
-	auto resultVoidOfFunctorTest = result(functorTest);
-
-	// Lambda Test
-	//	Lambda는 곧 unnamed functor이므로 클래스로써 식별, functor test와 같음.
-	auto lambdaTest = [arg]() {};
-	auto resultVoidOfLambdaTest = result(lambdaTest);
-
-
-	&FunctorTest::operator();
 }

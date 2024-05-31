@@ -11,5 +11,8 @@
 #include "framework.h"
 
 #include <tuple>
+#include <iostream>
+#include <functional>
+#include <vector>
 
 #endif //PCH_H
