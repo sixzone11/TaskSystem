@@ -119,8 +119,8 @@ std::vector<char> loadDataFromFile(const char* filePath)
 	return memory;
 }
 
-#define TaskProcessBegin(task_name, ...)	auto task_name = Task(ProcessBlock(__VA_ARGS__)
-#define TaskProcessNext(task_name, ...) ); auto task_name = Task(ProcessBlock(__VA_ARGS__)
+#define TaskProcessBegin(task_name, ...)	auto task_name = Task(__VA_ARGS__
+#define TaskProcessNext(task_name, ...) ); auto task_name = Task(__VA_ARGS__
 #define TaskProcessEnd() )
 
 std::vector<char> loadDataFromFileByTask(const char* filePath)
@@ -131,15 +131,15 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 	});
 	auto e1 = 5;
 
-	TaskProcessBegin(t1, filePath) //auto t1 = Task(ProcessBlock(filePath)
+	TaskProcessBegin(t1, ProcessBlock(filePath))
 	{
 		return isExist(filePath) ? filePath : nullptr;
 	}
-	TaskProcessNext(t2) //auto t2 = Task(Condition_Cancel(GetResultOfTask(t1) == nullptr), ProcessBlock()
+	TaskProcessNext(t2, Condition_Cancel(GetResultOfTask(t1) == nullptr), ProcessBlock())
 	{
 		return openFile(GetResultOfTask(t1));
 	}
-	TaskProcessNext(t3) //auto t3 = Task(Condition_Cancel(GetResultOfTask(t2) == nullptr), ProcessBlock()
+	TaskProcessNext(t3, Condition_Cancel(GetResultOfTask(t2) == nullptr), ProcessBlock())
 	{
 		//bool isFileExist = GetResultOfTask(e0);
 		void* fileDescriptor = GetResultOfTask(t2);
