@@ -747,4 +747,4 @@ auto TaskWriter::junction(TaskList&&... list)
 	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaJunction<TaskMetaTuple<TaskList...>>{}, getTaskCallables(std::forward<TaskList>(list)...));
 }
 
-#define GetResultOfTask(Task)		std::get<find_type_in_tuple<true, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>, decltype(info)>::value>(resultTuple)
+#define GetResultOfTask(Task)		std::get<find_type_in_tuple<true, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>::KeyType, decltype(info)>::value>(resultTuple)

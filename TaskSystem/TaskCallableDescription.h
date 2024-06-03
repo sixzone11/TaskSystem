@@ -248,11 +248,12 @@ struct SelectBindingSlots : select_binding_slots<0, index_sequence<>, Tuple> {};
 // CallableSignature
 
 template<typename _Callable, typename Ret, typename... Args>
-struct CallableSignature : BindingKey
+struct CallableSignature
 {
 	using Callable = _Callable;
 	constexpr static bool is_resolved = CallableInternalTypes<Callable>::is_resolved;
 
+	struct KeyType : public BindingKey {};
 	using RetType = typename CallableInternalTypes<Callable>::RetType;
 	using ParamTypeTuple = typename CallableInternalTypes<Callable>::ParamTypeTuple;
 	using ArgTypeTuple = tuple<Args...>;
@@ -276,7 +277,7 @@ template<typename Key, typename Callable, typename Ret, typename... Args>
 struct CallableSignatureWithKey : CallableSignature<Callable, Ret, Args...>
 {
 	static_assert(is_base_of_v<BindingKey, Key>, "Given Key is not a KeyType");
-	using KeyType = conditional_t<is_same_v<BindingKey_None, Key>, CallableSignature<Callable, Ret, Args...>, Key>;
+	using KeyType = conditional_t<is_same_v<BindingKey_None, Key>, typename CallableSignature<Callable, Ret, Args...>::KeyType, Key>;
 };
 
 ///////////////////////////////////////////////////////////////////////
@@ -295,7 +296,7 @@ struct CallableSignatureWithKey : CallableSignature<Callable, Ret, Args...>
 template<typename Key = BindingKey_None, typename Ret, typename... Params, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
 constexpr auto makeCallableSignature(Ret(*f)(Params...)) {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {
-		CallableSignature<Ret(*)(Params...), Ret, Params...> { BindingKey{ BindingSlot{} },
+		CallableSignature<Ret(*)(Params...), Ret, Params...> {
 			std::forward< Ret(*)(Params...)>(f),
 		}
 	};
@@ -304,7 +305,7 @@ constexpr auto makeCallableSignature(Ret(*f)(Params...)) {
 template<typename Key = BindingKey_None, typename Ret, typename... Params, typename... Args, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
 constexpr auto makeCallableSignature(Ret(*f)(Params...), Args&&... args) {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {
-		CallableSignature<Ret(*)(Params...), Ret, Args...> { BindingKey{ BindingSlot{} },
+		CallableSignature<Ret(*)(Params...), Ret, Args...> {
 			std::forward< Ret(*)(Params...)>(f),
 			std::tuple<Args...>{ std::forward<Args>(args)... }
 		}
@@ -316,7 +317,7 @@ template<typename Key = BindingKey_None, typename Type, typename Ret, typename..
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...)) {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {
-		CallableSignature<Ret(Type::*)(Params...), Ret, Params...> { BindingKey{ BindingSlot{} },
+		CallableSignature<Ret(Type::*)(Params...), Ret, Params...> {
 			std::forward< Ret(Type::*)(Params...)>(f),
 		}
 	};
@@ -326,7 +327,7 @@ template<typename Key = BindingKey_None, typename Type, typename Ret, typename..
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args&&... args) {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {
-		CallableSignature<Ret(Type::*)(Params...), Ret, Args...> { BindingKey{ BindingSlot{} },
+		CallableSignature<Ret(Type::*)(Params...), Ret, Args...> {
 			std::forward< Ret(Type::*)(Params...)>(f),
 			std::tuple<Args...>{ std::forward<Args>(args)... }
 		}
@@ -339,7 +340,7 @@ template<typename Key = BindingKey_None, typename Type, typename Ret, typename..
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const) {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {
-		CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...> { BindingKey{ BindingSlot{} },
+		CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...> {
 			std::forward< Ret(Type::*)(Params...) const>(f),
 		}
 	};
@@ -349,7 +350,7 @@ template<typename Key = BindingKey_None, typename Type, typename Ret, typename..
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const, Args&&... args) {
 	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {
-		CallableSignature<Ret(Type::*)(Params...) const, Ret, Args...> { BindingKey{ BindingSlot{} },
+		CallableSignature<Ret(Type::*)(Params...) const, Ret, Args...> {
 			std::forward< Ret(Type::*)(Params...) const>(f),
 			std::tuple<Args...>{ std::forward<Args>(args)... }
 		}
@@ -365,7 +366,7 @@ template<typename Key = BindingKey_None, typename Callable, typename... Args,
 {
 	using Ret = typename CallableInternalTypes<remove_reference_t<Callable>>::RetType;
 	return CallableSignatureWithKey<Key, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...> {
-		CallableSignature<Callable, Ret, Args...> { BindingKey{ BindingSlot{} },
+		CallableSignature<Callable, Ret, Args...> {
 			std::forward<Callable>(callable),
 			std::tuple<Args...>{ std::forward<Args>(args)... }
 		}
@@ -445,7 +446,7 @@ struct CallableInfo<false, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 	: CallableInfo<true, ReturnTypeTupleT, KeyTypeTupleT, decltype(makeCallableSignature<
 		typename CallableSignatureT::KeyType,
 		typename CallableSignatureT::Callable,
-		decltype(declval<typename CallableSignatureT::Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})),
+		decltype(declval<typename CallableSignatureT::Callable>()(declval<LambdaTaskIdentifier>(), declval<KeyTypeTupleT>(), declval<ReturnTypeTupleT>())),
 		LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
 	> (&CallableSignatureT::Callable::operator())) >
 	//> (&CallableSignatureT::Callable::operator(), LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})) >

@@ -60,19 +60,24 @@ void test_callableSignature()
 	}
 }
 
+#define GetResultVar(Var)				std::get<find_type_in_tuple<true, typename std::remove_reference_t<decltype(Var)>::KeyType, decltype(info)>::value>(resultTuple)
+#define BindingKeyVar(Var)				typename std::remove_reference_t<decltype(Var)>::KeyType()
+#define BindResultVar(Key, Var)			Var = GetResultVar(Key)
+#define AutoBindResultVar(Key, Var)		auto BindResultVar(Key, Var)
+
 void test_VariableAsBindingKey()
 {
 	auto t1 = makeCallableSignature(testFloatRet);
-	auto t2 = makeCallableSignature(test4, decltype(t1)());
+	auto t2 = makeCallableSignature(test4, BindingKeyVar(t1));
 	auto t3 = makeCallableSignature(ProcessBlock()
 	{
-		float param = GetResult(decltype(t1));
+		float param = GetResultVar(t1);
 		return param * 4.0f;
 	});
 	auto t4 = makeCallableSignature(ProcessBlock()
 	{
-		const float& param = GetResult(decltype(t1));
-		const float& param2 = GetResult(decltype(t3));
+		const float& param = GetResultVar(t1);
+		const float& param2 = GetResultVar(t3);
 		return param2 * param * 4.0f;
 	});
 
@@ -90,18 +95,18 @@ void testSignature()
 	
 	auto t0 = makeCallableSignature(testIntRet);
 	auto t1 = makeCallableSignature(testFloatRet);
-	auto t2 = makeCallableSignature(test4, decltype(t1)());
-	auto t3 = makeCallableSignature(test3, decltype(t0)(), decltype(t1)());
-	auto t4 = makeCallableSignature(testVoidRet, decltype(t0)(), decltype(t1)());
-	auto t5 = makeCallableSignature(test5, 3, decltype(t3)());
+	auto t2 = makeCallableSignature(test4, BindingKeyVar(t1));
+	auto t3 = makeCallableSignature(test3, BindingKeyVar(t0), BindingKeyVar(t1));
+	auto t4 = makeCallableSignature(testVoidRet, BindingKeyVar(t0), BindingKeyVar(t1));
+	auto t5 = makeCallableSignature(test5, 3, BindingKeyVar(t3));
 	auto t6 = makeCallableSignature([](LambdaTaskIdentifier, auto info, auto&& resultTuple)
 		{
-			AutoBindResult(decltype(t1), param);
-			AutoBindResult(decltype(t0), param2);
-			AutoBindResult(decltype(t3), param3);
+			AutoBindResultVar(t1, param);
+			AutoBindResultVar(t0, param2);
+			AutoBindResultVar(t3, param3);
 			return param * 4.0f;
 		});
-	auto t7 = makeCallableSignature(test4, decltype(t6)());
+	auto t7 = makeCallableSignature(test4, BindingKeyVar(t6));
 
 	auto callableInfo2 = makeCallableInfo(
 		t0, t1, t2, t3, t4, t5, t6, t7
@@ -202,6 +207,8 @@ void testStringSignature()
 	
 	auto t1 = MakeCallableSignatureStr(process_1, testFloatRet);
 	auto t2 = MakeCallableSignatureStr(process_2, test4, BindingKeyStr(process_1));
+
+	static_assert(is_same_v<decltype(BindingKeyVar(t1)), decltype(BindingKeyStr(process_1))>, "BindingKey(t1) and BindinigKey(process_1) is same");
 
 	auto callableInfo2 = makeCallableInfo(
 		MakeCallableSignatureStr(process_0, testIntRet),
