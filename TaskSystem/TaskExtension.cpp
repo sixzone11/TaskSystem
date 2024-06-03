@@ -63,7 +63,7 @@ void test_callableSignature()
 void test_VariableAsBindingKey()
 {
 	auto t1 = makeCallableSignature(testFloatRet);
-	auto t2 = makeCallableSignature(test4, t1);
+	auto t2 = makeCallableSignature(test4, decltype(t1)());
 	auto t3 = makeCallableSignature(ProcessBlock()
 	{
 		float param = GetResult(decltype(t1));
