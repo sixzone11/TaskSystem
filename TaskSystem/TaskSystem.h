@@ -50,6 +50,9 @@ struct ITaskKey
 {
 	virtual ~ITaskKey() {}
 
+	virtual void process() = 0;
+	virtual void process() const = 0;
+
 	friend TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey);
 };
 TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey);
@@ -70,7 +73,15 @@ private:
 
 extern "C" TASKSYSTEM_API ITaskManager * getDefaultTaskManager();
 
+template<typename CallableSignature>
+struct CallableTaskKey : public ITaskKey
+{
+	CallableTaskKey()
+	~CallableTaskKey() override {}
 
+	void process() override;
+	void process() const override;
+};
 
 template<typename TaskInfoList>
 ITaskKey* ITaskManager::createTask(TaskInfoList&& taskInfoList)
@@ -78,13 +89,19 @@ ITaskKey* ITaskManager::createTask(TaskInfoList&& taskInfoList)
 	using TaskTuple = std::remove_reference_t<TaskInfoList>;
 	using TaskMeta = typename std::tuple_element<IndexTaskMeta, TaskTuple>::type;
 
-	return createTask(std::make_shared<TaskCommitInfo>(
+	auto taskCommitInfo = std::make_shared<TaskCommitInfo>(
 		moveDefinesToVec(std::forward<TaskInfoList>(taskInfoList)),
 		copyToVec<typename TaskGetter<TaskMeta>::Offsets, 1>(),
 		copyToVec<typename TaskGetter<TaskMeta>::Links>(),
 		copyToVec<typename TaskGetter<TaskMeta>::Inputs>(),
 		copyToVec<typename TaskGetter<TaskMeta>::Outputs>()
-		));
+	);
+
+	auto& defines = taskCommitInfo->_taskDefines;
+	auto& taskKeys = taskCommitInfo->_taskKeys;
+
+
+	return createTask();
 }
 
 #include <cwchar>
