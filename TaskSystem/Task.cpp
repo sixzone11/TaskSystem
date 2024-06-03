@@ -7,17 +7,14 @@
 
 struct TaskKeyImpl : public ITaskKey
 {
-	TaskKeyImpl(TaskDefine&& taskDesc) :
-		_taskDesc(std::move(taskDesc))
+	TaskKeyImpl(std::shared_ptr<TaskCommitInfo>&& commitInfo, const uint32_t definedIndex)
+		: _commitInfo(std::move(commitInfo))
+		, _definedIndex(definedIndex)
 	{
 	}
 
-	ITaskKey* createNextTask(TaskDefine&& taskDesc)
-	{
-		return new TaskKeyImpl(std::move(taskDesc));
-	}
-
-	TaskDefine _taskDesc;
+	std::shared_ptr<TaskCommitInfo> _commitInfo;
+	uint32_t _definedIndex;
 };
 
 std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey)
@@ -28,9 +25,18 @@ std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey)
 
 class TaskManagerImpl : public ITaskManager
 {
-	ITaskKey* createTask(TaskDefine&& taskDesc)
+	ITaskKey* createTask(std::shared_ptr<TaskCommitInfo>&& taskCommitInfo) override
 	{
-		return new TaskKeyImpl(std::move(taskDesc));
+		auto& defines = taskCommitInfo->_taskDefines;
+		auto& taskKeys = taskCommitInfo->_taskKeys;
+
+		for( uint32_t i = 0; auto const& define : defines )
+		{
+			taskKeys.emplace_back(new TaskKeyImpl(std::move(taskCommitInfo), i));
+			++i;
+		}
+
+		return taskKeys.front().get();
 	}
 };
 

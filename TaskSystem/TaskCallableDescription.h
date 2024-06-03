@@ -261,6 +261,9 @@ struct CallableSignature : BindingKey
 	auto getOriginalSignature() { return OriginalSignature{}; }
 
 	using BindingSlotIndexSequence = typename SelectBindingSlots<ArgTypeTuple>::ReturnIndexSequence;
+
+	Callable _callable;
+	ArgTypeTuple _arg = tuple<Args...>{ Args{}... };
 };
 
 //template<typename Callable, typename = std::enable_if_t<std::is_class_v<std::remove_reference_t<Callable>>>, typename... Args>
@@ -290,36 +293,84 @@ struct CallableSignatureWithKey : CallableSignature<Callable, Ret, Args...>
 
 // Functions
 template<typename Key = BindingKey_None, typename Ret, typename... Params, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
-constexpr auto makeCallableSignature(Ret(*f)(Params...))				{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
+constexpr auto makeCallableSignature(Ret(*f)(Params...)) {
+	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {
+		CallableSignature<Ret(*)(Params...), Ret, Params...> { BindingKey{ BindingSlot{} },
+			std::forward< Ret(*)(Params...)>(f),
+		}
+	};
+}
 
 template<typename Key = BindingKey_None, typename Ret, typename... Params, typename... Args, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
-constexpr auto makeCallableSignature(Ret(*f)(Params...), Args...)		{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
+constexpr auto makeCallableSignature(Ret(*f)(Params...), Args&&... args) {
+	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {
+		CallableSignature<Ret(*)(Params...), Ret, Args...> { BindingKey{ BindingSlot{} },
+			std::forward< Ret(*)(Params...)>(f),
+			std::tuple<Args...>{ std::forward<Args>(args)... }
+		}
+	};
+}
 
 // Non-static Member Functions (non-const)
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
-constexpr auto makeCallableSignature(Ret(Type::*f)(Params...))			{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...)) {
+	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {
+		CallableSignature<Ret(Type::*)(Params...), Ret, Params...> { BindingKey{ BindingSlot{} },
+			std::forward< Ret(Type::*)(Params...)>(f),
+		}
+	};
+}
 
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params, typename... Args,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
-constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args...)	{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args&&... args) {
+	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {
+		CallableSignature<Ret(Type::*)(Params...), Ret, Args...> { BindingKey{ BindingSlot{} },
+			std::forward< Ret(Type::*)(Params...)>(f),
+			std::tuple<Args...>{ std::forward<Args>(args)... }
+		}
+	};
+}
 
 // Non-static Member Functions (const)
 
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
-constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const)	{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {}; }
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const) {
+	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Params...> {
+		CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...> { BindingKey{ BindingSlot{} },
+			std::forward< Ret(Type::*)(Params...) const>(f),
+		}
+	};
+}
 
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params, typename... Args,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
-constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const, Args...)	{ return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {}; }
+constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const, Args&&... args) {
+	return CallableSignatureWithKey<Key, remove_reference_t<decltype(f)>, Ret, Args...> {
+		CallableSignature<Ret(Type::*)(Params...) const, Ret, Args...> { BindingKey{ BindingSlot{} },
+			std::forward< Ret(Type::*)(Params...) const>(f),
+			std::tuple<Args...>{ std::forward<Args>(args)... }
+		}
+	};
+}
 
 // Callable Class (Functor, Lambda)
 template<typename Key = BindingKey_None, typename Callable, typename... Args,
 	typename = std::enable_if_t<
 		std::is_class_v<std::remove_reference_t<Callable>> && is_base_of_v<BindingKey, Key>
 	>>
-constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)	{ return CallableSignatureWithKey<Key, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...> {}; }
+	constexpr auto makeCallableSignature(Callable&& callable, Args&&... args)
+{
+	using Ret = typename CallableInternalTypes<remove_reference_t<Callable>>::RetType;
+	return CallableSignatureWithKey<Key, remove_reference_t<Callable>, typename CallableInternalTypes<remove_reference_t<Callable>>::RetType, Args...> {
+		CallableSignature<Callable, Ret, Args...> { BindingKey{ BindingSlot{} },
+			std::forward<Callable>(callable),
+			std::tuple<Args...>{ std::forward<Args>(args)... }
+		}
+	};
+}
 
 static void nothing() {}
 using NullCallableSignature = decltype(makeCallableSignature(nothing));

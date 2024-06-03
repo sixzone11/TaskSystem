@@ -294,14 +294,16 @@ struct GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, 
 	: GetChain<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>>
 {};
 
-template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... Pathes>
-struct GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, true, Pathes...>
+template<uint32_t _NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... Pathes>
+struct GetNext<_NumManifests, NumLinks, NumInputs, NumOutputs, true, Pathes...>
 {
 	constexpr static const auto _offsets = GetChain<Pathes...>::_offsets;
 	constexpr static const auto _links = GetChain<Pathes...>::_links;
 	constexpr static const auto _inputs = GetChain<Pathes...>::_inputs;
 	constexpr static const auto _outputs = GetChain<Pathes...>::_outputs;
 	constexpr static const auto _precedingCount = GetChain<Pathes...>::_precedingCount;
+
+	constexpr static const uint32_t NumManifests = _NumManifests;
 };
 
 
@@ -366,45 +368,26 @@ struct GetJunction<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepTyp
 	: GetJunction<GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>>
 {};
 
-template<uint32_t NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... Pathes>
-struct GetNext<NumManifests, NumLinks, NumInputs, NumOutputs, false, Pathes...>
+template<uint32_t _NumManifests, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, typename... Pathes>
+struct GetNext<_NumManifests, NumLinks, NumInputs, NumOutputs, false, Pathes...>
 {
 	constexpr static const auto _offsets = GetJunction<Pathes...>::_offsets;
 	constexpr static const auto _links = GetJunction<Pathes...>::_links;
 	constexpr static const auto _inputs = GetJunction<Pathes...>::_inputs;
 	constexpr static const auto _outputs = GetJunction<Pathes...>::_outputs;
 	constexpr static const auto _precedingCount = GetJunction<Pathes...>::_precedingCount;
-};
 
-template<typename T, uint32_t I>
-struct __copyToVec
-{
-	constexpr static void func(uint32_t* out)
-	{
-		__copyToVec<T, I - 1>::func(out);
-		out[I] = std::get<I>(T::_var);
-	}
+	constexpr static const uint32_t NumManifests = _NumManifests;
 };
 
 
 template<typename T>
-struct __copyToVec<T, 0>
-{
-	constexpr static void func(uint32_t* out)
-	{
-		out[0] = std::get<0>(T::_var);
-	}
+struct TaskGetter {
+	struct Offsets { constexpr static const auto _var = T::_offsets; };
+	struct Links { constexpr static const auto _var = T::_links; };
+	struct Inputs { constexpr static const auto _var = T::_inputs; };
+	struct Outputs { constexpr static const auto _var = T::_outputs; };
 };
-
-template<typename T>
-std::vector<uint32_t> copyToVec()
-{
-	constexpr uint32_t Size = std::tuple_size<decltype(T::_var)>::value;
-	std::vector<uint32_t> vec(Size);
-	__copyToVec<T, Size - 1>::func(vec.data());
-	return vec;
-}
-
 
 
 using TaskMeta = GetNext<1, 1, 1, 1, true>;
@@ -420,6 +403,34 @@ struct TaskDefine
 	//TaskExecutePoint _executePoint = {};
 };
 
+struct ITaskKey;
+
+struct TaskCommitInfo
+{
+	std::vector<TaskDefine> _taskDefines;
+	std::vector<uint32_t> _offsets;
+	std::vector<uint32_t> _links;
+	std::vector<uint32_t> _inputs;
+	std::vector<uint32_t> _outputs;
+	std::vector<uint32_t> _precedingCount;
+	std::vector<std::unique_ptr<ITaskKey>> _taskKeys;
+
+	TaskCommitInfo(std::vector<TaskDefine>&& taskDefines, std::vector<uint32_t>&& offsets, std::vector<uint32_t>&& links, std::vector<uint32_t>&& inputs, std::vector<uint32_t>&& outputs)
+		: _taskDefines(std::move(taskDefines))
+		, _offsets(std::move(offsets))
+		, _links(std::move(links))
+		, _inputs(std::move(inputs))
+		, _outputs(std::move(outputs))
+		, _precedingCount(_taskDefines.size() + 1, 1u)
+	{
+		for (const uint32_t& link : _links)
+			_precedingCount[link]++;
+
+		_offsets.back() = uint32_t(_links.size());
+
+		_taskKeys.reserve(_taskDefines.size());
+	}
+};
 
 struct FunctionTag {};
 struct LambdaTag {};
@@ -498,8 +509,9 @@ struct TaskWriter
 	{
 		//static_assert(decltype(getParameterCount(func, typename CallableAccessor<std::is_class_v<std::remove_reference_t<Func>>>::Tag{}))::value == sizeof...(ArgTypes), "Num of arguments are different for given task function");
 		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
-		using CallableSignature = decltype(makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
-		return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
+		// using CallableSignature = decltype(makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
+		// return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
+		return std::make_tuple(TaskDefine{}, TaskMeta{}, makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
 	}
 
 	template<typename... TaskList>
@@ -662,12 +674,12 @@ public:
 	using TaskMetaTuple = typename std::remove_const_t<decltype(
 		std::tuple_cat(make_tuple_if_not_void(typename std::tuple_element_t<IndexTaskMeta, TaskList>{})...)) > ; /* Resolved(1): remove_const¸¦ ±ôºýÇÔ. */
 
-	using TaskCallableTuple = typename std::remove_const_t<decltype(
-		std::tuple_cat(
-			conditional_t < is_callable_signature_v<typename std::tuple_element_t<IndexTaskCallable, TaskList>>,
-			decltype(std::make_tuple(typename std::tuple_element_t<IndexTaskCallable, TaskList>{})),
-			typename std::tuple_element_t<IndexTaskCallable, TaskList >> {} ...)
-		) > ;
+	constexpr static auto getTaskCallableAsTuple(TaskList&&... list) {
+		return std::tuple_cat(
+			(is_callable_signature_v<typename std::tuple_element_t<IndexTaskCallable, TaskList>> ?
+			std::make_tuple(std::get<IndexTaskCallable>(list)) :
+			std::get<IndexTaskCallable>(list)) ...);
+	}
 };
 
 template<typename... TaskList>
@@ -677,42 +689,43 @@ template<typename... TaskList>
 using TaskMetaTuple = typename SeparateTaskList<TaskList...>::TaskMetaTuple;
 
 template<typename... TaskList>
-using TaskCallableTuple = typename SeparateTaskList<TaskList...>::TaskCallableTuple;
+constexpr auto getTaskCallables(TaskList&&... list) { return SeparateTaskList<TaskList...>::getTaskCallableAsTuple(std::forward<TaskList>(list)...); }
 
-struct TaskWriterUtil
+
+template<typename TaskDefineTuple, uint32_t... I, std::enable_if_t<sizeof...(I) == 0, int> = 0>
+constexpr static void __moveTaskDefine(TaskDefine* outDefines, TaskDefineTuple&& tuple, std::integer_sequence<uint32_t, I...>) {}
+
+template<typename TaskDefineTuple, uint32_t... I, std::enable_if_t<sizeof...(I) != 0, int> = 0>
+constexpr static void __moveTaskDefine(TaskDefine* outDefines, TaskDefineTuple&& tuple, std::integer_sequence<uint32_t, I...>)
 {
-private:
-	template<typename TaskDefineTuple, uint32_t Max, uint32_t Index>
-	struct __MoveTaskDefine
-	{
-		using TaskDefineArray = typename std::tuple_element<Index, TaskDefineTuple>::type;
+	((outDefines[I] = std::get<I>(std::forward<TaskDefineTuple>(tuple))), ...);
+}
 
-		static void moveTo(TaskDefine* outDefines, TaskDefineTuple&& tuple)
-		{
-			auto&& defines = std::move(std::get<Index>(tuple));
+template<typename TaskInfoList>
+inline std::vector<TaskDefine> moveDefinesToVec(TaskInfoList&& taskInfoList)
+{
+	using TaskTuple = std::remove_reference_t<TaskInfoList>;
+	using TaskDefineList = typename std::tuple_element<IndexTaskDefine, TaskTuple>::type;
+	using TaskMeta = typename std::tuple_element<IndexTaskMeta, TaskTuple>::type;
 
-			constexpr uint32_t M = std::tuple_size<TaskDefineArray>::value;
-			for (uint32_t i = 0; i < M; ++i)
-				outDefines[i] = std::move(defines[i]);
+	std::vector<TaskDefine> vec(TaskMeta::NumManifests);
+	//TaskWriterUtil::moveTaskDefine(vec.data(), std::forward<TaskDefineList>(std::get<IndexTaskDefine>(std::forward<TaskInfoList>(taskInfoList))));
+	__moveTaskDefine(vec.data(), std::get<IndexTaskDefine>(std::forward<TaskInfoList>(taskInfoList)), std::make_integer_sequence<uint32_t, TaskMeta::NumManifests>{});
+	return vec;
+}
 
-			__MoveTaskDefine<TaskDefineTuple, Max, Index + 1>::moveTo(outDefines + M, std::forward<TaskDefineTuple>(tuple));
-		}
-	};
+template<typename T, uint32_t... I>
+constexpr static void __copyToVec(uint32_t* out, std::integer_sequence<uint32_t, I...>) { ((out[I] = std::get<I>(T::_var)), ...); }
 
-	template<typename TaskDefineTuple, uint32_t Max>
-	struct __MoveTaskDefine<TaskDefineTuple, Max, Max>
-	{
-		static void moveTo(TaskDefine* outDefines, TaskDefineTuple&& tuple) {}
-	};
+template<typename T, uint32_t AdditionalSize = 0>
+std::vector<uint32_t> copyToVec()
+{
+	constexpr uint32_t Size = std::tuple_size<decltype(T::_var)>::value;
+	std::vector<uint32_t> vec(Size + AdditionalSize);
+	__copyToVec<T>(vec.data(), std::make_integer_sequence<uint32_t, Size - 1>{});
+	return vec;
+}
 
-public:
-	template<typename TaskDefineTuple>
-	static void moveTaskDefine(TaskDefine* outDefines, TaskDefineTuple&& tuple)
-	{
-		constexpr const uint32_t Max = std::tuple_size<TaskDefineTuple>::value;
-		return __MoveTaskDefine<TaskDefineTuple, Max, 0>::moveTo(outDefines, std::forward<TaskDefineTuple>(tuple));
-	}
-};
 
 template<typename... CallableSignatures>
 auto makeCallableInfoByTuple(tuple<CallableSignatures...>&& tuple)
@@ -723,15 +736,15 @@ auto makeCallableInfoByTuple(tuple<CallableSignatures...>&& tuple)
 template<typename... TaskList>
 auto TaskWriter::chain(TaskList&&... list)
 {
-	makeCallableInfoByTuple(TaskCallableTuple<TaskList...>{});
-	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaChain<TaskMetaTuple<TaskList...>>{}, TaskCallableTuple<TaskList...>{});
+	//makeCallableInfoByTuple(TaskCallableTuple<TaskList...>{});
+	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaChain<TaskMetaTuple<TaskList...>>{}, getTaskCallables(std::forward<TaskList>(list)...));
 }
 
 template<typename... TaskList>
 auto TaskWriter::junction(TaskList&&... list)
 {
-	makeCallableInfoByTuple(TaskCallableTuple<TaskList...>{});
-	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaJunction<TaskMetaTuple<TaskList...>>{}, TaskCallableTuple<TaskList...>{});
+	//makeCallableInfoByTuple(TaskCallableTuple<TaskList...>{});
+	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaJunction<TaskMetaTuple<TaskList...>>{}, getTaskCallables(std::forward<TaskList>(list)...));
 }
 
 #define GetResultOfTask(Task)		std::get<find_type_in_tuple<true, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>, decltype(info)>::value>(resultTuple)

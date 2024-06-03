@@ -181,6 +181,14 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 
 	auto openFileTasks = Dependency( move(t1), move(t2), move(t3));
 
+	constexpr size_t sizeof_t1 = sizeof(t1);
+	constexpr size_t sizeof_t2 = sizeof(t2);
+	constexpr size_t sizeof_t3 = sizeof(t3);
+	constexpr size_t sizeof_openFileTasks = sizeof(openFileTasks);
+
+	ITaskManager* taskManager = getDefaultTaskManager();
+	ITaskKey* taskKey = taskManager->createTask(move(openFileTasks));
+
 	return std::vector<char>();
 }
 

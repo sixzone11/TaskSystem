@@ -48,7 +48,7 @@ extern TaskExecutePoint g_taskExecutePointAsyncWorkerThread;
 
 struct ITaskKey
 {
-	virtual ITaskKey* createNextTask(TaskDefine&& taskDefine) = 0;
+	virtual ~ITaskKey() {}
 
 	friend TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey);
 };
@@ -56,12 +56,36 @@ TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKe
 
 struct ITaskManager
 {
-	virtual ITaskKey* createTask(TaskDefine&& taskDefine) = 0;
+public:
+	template<typename TaskInfoList>
+	ITaskKey* createTask(TaskInfoList&& taskInfoList);
+
+	virtual ~ITaskManager() {}
+
+private:
+	virtual ITaskKey* createTask(std::shared_ptr<TaskCommitInfo>&& taskCommitInfo) = 0;
 
 	//virtual TaskExecutePoint createTaskExecutePoint(TaskExecutePointDesc&& taskExecutePointDesc) = 0;
 };
 
 extern "C" TASKSYSTEM_API ITaskManager * getDefaultTaskManager();
+
+
+
+template<typename TaskInfoList>
+ITaskKey* ITaskManager::createTask(TaskInfoList&& taskInfoList)
+{
+	using TaskTuple = std::remove_reference_t<TaskInfoList>;
+	using TaskMeta = typename std::tuple_element<IndexTaskMeta, TaskTuple>::type;
+
+	return createTask(std::make_shared<TaskCommitInfo>(
+		moveDefinesToVec(std::forward<TaskInfoList>(taskInfoList)),
+		copyToVec<typename TaskGetter<TaskMeta>::Offsets, 1>(),
+		copyToVec<typename TaskGetter<TaskMeta>::Links>(),
+		copyToVec<typename TaskGetter<TaskMeta>::Inputs>(),
+		copyToVec<typename TaskGetter<TaskMeta>::Outputs>()
+		));
+}
 
 #include <cwchar>
 
