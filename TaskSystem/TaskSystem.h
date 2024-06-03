@@ -1,9 +1,17 @@
 ﻿#pragma once
 
+#ifdef _WIN32
 #ifdef TASKSYSTEM_EXPORTS
 #define TASKSYSTEM_API __declspec(dllexport)
 #else
 #define TASKSYSTEM_API __declspec(dllimport)
+#endif
+
+#else
+#define TASKSYSTEM_API
+#define sprintf_s sprintf
+#define swprintf_s swprintf
+
 #endif
 
 #include "TaskWriter.h"
