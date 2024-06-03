@@ -71,7 +71,7 @@ int main()
 
 
 	convertToStringList<Format::utf16>(5);
-	convertToStringList<Format::utf8>(5.0);
+	convertToStringList<Format::utf8>(3);
 
 	//std::ostringstream stest(,);
 	std::cout << "Hello World!" << std::endl;
