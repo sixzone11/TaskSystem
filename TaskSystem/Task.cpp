@@ -33,7 +33,8 @@ class TaskManagerImpl : public ITaskManager
 		auto& defines = taskCommitInfo->_taskDefines;
 		auto& taskKeys = taskCommitInfo->_taskKeys;
 
-		for( uint32_t i = 0; auto const& define : defines )
+		uint32_t i = 0;
+		for( auto const& define : defines )
 		{
 			taskKeys.emplace_back(new TaskKeyImpl(std::move(taskCommitInfo), i));
 			++i;

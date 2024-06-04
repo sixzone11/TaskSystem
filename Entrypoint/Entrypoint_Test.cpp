@@ -165,7 +165,7 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 		void* fileDescriptor = GetResultOfTask(t2);
 
 		if (fileDescriptor == nullptr)
-			return declval<std::vector<char>>();
+			return std::vector<char>();
 
 		size_t fileSize = getSize(fileDescriptor);
 
@@ -173,7 +173,7 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 
 		int result = readFile(fileDescriptor, memory, fileSize);
 		if (result != 0)
-			return declval<std::vector<char>>();
+			return std::vector<char>();
 
 		return memory;
 	}
