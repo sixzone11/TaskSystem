@@ -47,6 +47,12 @@ static void test()
 
 void test_ver2();
 
+template<typename Tuple, typename T>
+constexpr auto moveTest(Tuple&& tuple, T&& arg)
+{
+	return std::tuple_cat(std::forward<Tuple>(tuple), std::make_tuple(std::forward<T>(arg)));
+}
+
 int main()
 {
 	//ITaskManager* taskManager = getDefaultTaskManager();
@@ -69,6 +75,10 @@ int main()
 	//
 	//taskManager->createTask();
 
+	auto start = make_tuple();
+	auto second = moveTest(start, 5);
+	auto third = moveTest(second, 3);
+	auto forth = moveTest(std::move(third), 1.3f);
 
 	convertToStringList<Format::utf16>(5);
 	convertToStringList<Format::utf8>(3);

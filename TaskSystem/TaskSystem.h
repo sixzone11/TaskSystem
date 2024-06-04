@@ -73,35 +73,113 @@ private:
 
 extern "C" TASKSYSTEM_API ITaskManager * getDefaultTaskManager();
 
-template<typename CallableSignature>
+template<typename Callable, typename ArgTypeTuple, typename RetType>
 struct CallableTaskKey : public ITaskKey
 {
-	CallableTaskKey()
+	template<typename CallableSignature>
+	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo)//, RetType& ret)
+		: _callable(std::move(callableSignature._callable))
+		, _args(std::move(callableSignature._args))
+		, _commitInfo(taskCommitInfo)
+		//, _ret(ret)
+	{}
 	~CallableTaskKey() override {}
 
-	void process() override;
-	void process() const override;
+	void process() override
+	{
+		delegate_call(std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{});
+	}
+	void process() const override
+	{
+		delegate_call(std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{});
+	}
+
+	template<uint32_t... Iseq>
+	auto delegate_call(std::false_type, std::integer_sequence<uint32_t, Iseq...>) { return _callable(std::get<Iseq>(_args)...); }
+
+	template<uint32_t... Iseq>
+	auto delegate_call(std::false_type, std::integer_sequence<uint32_t, Iseq...>) const { return _callable(std::get<Iseq>(_args)...); }
+	
+	template<uint32_t... Iseq>
+	auto delegate_call(std::true_type, std::integer_sequence<uint32_t, Iseq...>) { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
+
+	template<uint32_t... Iseq>
+	auto delegate_call(std::true_type, std::integer_sequence<uint32_t, Iseq...>) const { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
+
+private:
+	Callable _callable;
+	ArgTypeTuple _args;
+	//RetType& _ret;
+
+	std::shared_ptr<TaskCommitInfo> _commitInfo;
+	uint32_t _definedIndex;
 };
+
+template<typename CallableSignature, typename... Args_CallableTaskKey>
+inline auto make_CallableTaskKey(Args_CallableTaskKey&&... args)
+{
+	using Callable = typename CallableSignature::Callable;
+	using ArgTypeTuple = typename CallableSignature::ArgTypeTuple;
+	using RetType = typename CallableSignature::RetType;
+	
+	constexpr bool isLambdaTask = std::is_same_v<LambdaTaskIdentifier, std::tuple_element_t<0, typename CallableSignature::ParamTypeTuple>>;
+	return new CallableTaskKey<Callable, ArgTypeTuple, RetType>(std::forward<Args_CallableTaskKey>(args)...);
+}
+
+template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) == 0, int> = 0>
+constexpr static void __createCallableTasks(std::unique_ptr<ITaskKey>* outCallableTasks, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskCallableTuple&& tuple, std::integer_sequence<uint32_t, I...>) {}
+
+template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) != 0, int> = 0>
+constexpr static void __createCallableTasks(std::unique_ptr<ITaskKey>* outCallableTasks, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskCallableTuple&& tuple, std::integer_sequence<uint32_t, I...>)
+{
+	using CallableInfoType = decltype(makeCallableInfoByTuple(std::declval<TaskCallableTuple>()));
+	((outCallableTasks[I].reset(make_CallableTaskKey<std::tuple_element_t<I, TaskCallableTuple>>(std::get<I>(std::forward<TaskCallableTuple>(tuple)), taskCommitInfo) )), ...);
+}
+
+template<typename TaskInfoList>
+inline void createCallableTasks(std::vector<std::unique_ptr<ITaskKey>>& outTaskKeys, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskInfoList&& taskInfoList)
+{
+	using TaskTuple = std::remove_reference_t<TaskInfoList>;
+	using TaskMeta = typename std::tuple_element_t<IndexTaskMeta, TaskTuple>;
+
+	__createCallableTasks(outTaskKeys.data(), taskCommitInfo, std::get<IndexTaskCallable>(std::forward<TaskInfoList>(taskInfoList)), std::make_integer_sequence<uint32_t, TaskMeta::NumManifests>{});
+}
 
 template<typename TaskInfoList>
 ITaskKey* ITaskManager::createTask(TaskInfoList&& taskInfoList)
 {
 	using TaskTuple = std::remove_reference_t<TaskInfoList>;
-	using TaskMeta = typename std::tuple_element<IndexTaskMeta, TaskTuple>::type;
+	using TaskMeta = typename std::tuple_element_t<IndexTaskMeta, TaskTuple>;
+	using TaskCallableInfo = decltype(makeCallableInfoByTuple(std::declval<typename std::tuple_element_t<IndexTaskCallable, TaskInfoList>>()));
 
 	auto taskCommitInfo = std::make_shared<TaskCommitInfo>(
 		moveDefinesToVec(std::forward<TaskInfoList>(taskInfoList)),
 		copyToVec<typename TaskGetter<TaskMeta>::Offsets, 1>(),
 		copyToVec<typename TaskGetter<TaskMeta>::Links>(),
 		copyToVec<typename TaskGetter<TaskMeta>::Inputs>(),
-		copyToVec<typename TaskGetter<TaskMeta>::Outputs>()
+		copyToVec<typename TaskGetter<TaskMeta>::Outputs>(),
+		sizeof(typename TaskCallableInfo::ReturnTypeTuple)
 	);
 
+	auto& taskKeys = taskCommitInfo->_taskKeys;
+	createCallableTasks(taskKeys, taskCommitInfo, std::forward<TaskInfoList>(taskInfoList));
+
+	return taskKeys.back().get();
+
+
+#if 0
 	auto& defines = taskCommitInfo->_taskDefines;
 	auto& taskKeys = taskCommitInfo->_taskKeys;
 
-
-	return createTask();
+	uint32_t i = 0;
+	for (auto const& define : defines)
+	{
+		taskKeys[i].reset(new TaskKeyImpl(std::move(taskCommitInfo), i));
+		++i;
+	}
+#endif
+	
+	//return createTask(std::move(taskCommitInfo));
 }
 
 #include <cwchar>

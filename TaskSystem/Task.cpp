@@ -13,6 +13,9 @@ struct TaskKeyImpl : public ITaskKey
 	{
 	}
 
+	void process() override {}
+	void process() const override {}
+
 	std::shared_ptr<TaskCommitInfo> _commitInfo;
 	uint32_t _definedIndex;
 };

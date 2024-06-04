@@ -414,21 +414,24 @@ struct TaskCommitInfo
 	std::vector<uint32_t> _outputs;
 	std::vector<uint32_t> _precedingCount;
 	std::vector<std::unique_ptr<ITaskKey>> _taskKeys;
+	std::vector<uint8_t> _returnTypeTupleMemory;
 
-	TaskCommitInfo(std::vector<TaskDefine>&& taskDefines, std::vector<uint32_t>&& offsets, std::vector<uint32_t>&& links, std::vector<uint32_t>&& inputs, std::vector<uint32_t>&& outputs)
+	TaskCommitInfo(std::vector<TaskDefine>&& taskDefines, std::vector<uint32_t>&& offsets, std::vector<uint32_t>&& links, std::vector<uint32_t>&& inputs, std::vector<uint32_t>&& outputs, size_t sizeOfReturnTypeTuple)
 		: _taskDefines(std::move(taskDefines))
 		, _offsets(std::move(offsets))
 		, _links(std::move(links))
 		, _inputs(std::move(inputs))
 		, _outputs(std::move(outputs))
 		, _precedingCount(_taskDefines.size() + 1, 1u)
+		, _taskKeys(_taskDefines.size())
+		, _returnTypeTupleMemory(sizeOfReturnTypeTuple)
 	{
 		for (const uint32_t& link : _links)
 			_precedingCount[link]++;
 
 		_offsets.back() = uint32_t(_links.size());
 
-		_taskKeys.reserve(_taskDefines.size());
+		//_taskKeys.reserve(_taskDefines.size());
 	}
 };
 
@@ -705,11 +708,9 @@ template<typename TaskInfoList>
 inline std::vector<TaskDefine> moveDefinesToVec(TaskInfoList&& taskInfoList)
 {
 	using TaskTuple = std::remove_reference_t<TaskInfoList>;
-	using TaskDefineList = typename std::tuple_element<IndexTaskDefine, TaskTuple>::type;
 	using TaskMeta = typename std::tuple_element<IndexTaskMeta, TaskTuple>::type;
 
 	std::vector<TaskDefine> vec(TaskMeta::NumManifests);
-	//TaskWriterUtil::moveTaskDefine(vec.data(), std::forward<TaskDefineList>(std::get<IndexTaskDefine>(std::forward<TaskInfoList>(taskInfoList))));
 	__moveTaskDefine(vec.data(), std::get<IndexTaskDefine>(std::forward<TaskInfoList>(taskInfoList)), std::make_integer_sequence<uint32_t, TaskMeta::NumManifests>{});
 	return vec;
 }
@@ -730,7 +731,7 @@ std::vector<uint32_t> copyToVec()
 template<typename... CallableSignatures>
 auto makeCallableInfoByTuple(tuple<CallableSignatures...>&& tuple)
 {
-	return makeCallableInfo(CallableSignatures{} ...);
+	return decltype(makeCallableInfo(std::declval<CallableSignatures>() ...)) {};
 }
 
 template<typename... TaskList>

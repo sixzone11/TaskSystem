@@ -50,13 +50,23 @@ void test_callableSignature()
 		auto callableInfo = makeCallableInfo(
 			callableSignature1,
 			callableSignature0,
-			callableSignature4_binding,
+			//callableSignature4_binding,
 			callableSignature3_binding,
-			callableSignature2_binding,
+			//callableSignature2_binding,
 			callableSignature5_binding,
-			callableSignature6_binding,
-			callableSignature7_binding
+			callableSignature6_binding
+			//callableSignature7_binding
 		);
+
+		constexpr size_t sizeofReturnTypeTuple = sizeof(typename decltype(callableInfo)::ReturnTypeTuple);
+
+		typename decltype(callableInfo)::ReturnTypeTuple retTuple;
+		auto& v0 = get<0>(retTuple);
+		auto& v1 = get<1>(retTuple);
+		auto& v2 = get<2>(retTuple);
+		auto& v3 = get<3>(retTuple);
+		auto& v4 = get<4>(retTuple);
+		//auto& v5 = get<5>(retTuple);
 	}
 }
 
