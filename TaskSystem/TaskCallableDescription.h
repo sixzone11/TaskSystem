@@ -420,11 +420,6 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 	//	tuple_size_v<KeyTypeTupleT> == 0 ||
 	//	find_type_in_tuple<true, typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == ~0ull, "Failed to makeCallableInfo since key is duplicated.");
 
-	//using Callable = typename CallableSignatureT::Callable;
-	//using ResolvedCallableSignatureT = typename decltype(makeCallableInternalTypeByFunction <
-	//	Callable, KeyTypeTupleT, ReturnTypeTupleT,
-	//	decltype(declval<Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})) > (&Callable::operator()));
-
 	using CallableSignatureResolved	= CallableSignatureT;
 	using ReturnTypeTuple			= CurrentReturnTypeTupleSelf;
 	using KeyTypeTuple				= CurrentKeyTypeTuple;
@@ -451,43 +446,13 @@ struct CallableInfo<false, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 		LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&& \
 	>(&CallableSignatureT::Callable::operator())) >
 	: ResolvedCallableInfo
-	//> (&CallableSignatureT::Callable::operator(), LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})) >
 {
 	//static_assert(CallableSignatureT::is_resolved == true, "substitution is not finished");
-	//using ResolvedCallableSignatureT = typename decltype(makeCallableSignature<
-	//	typename CallableSignatureT::KeyType,
-	//	typename CallableSignatureT::Callable,
-	//	decltype(declval<typename CallableSignatureT::Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})),
-	//	LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
-	//>(&CallableSignatureT::Callable::operator()));
-
-	//using ResolvedCallableSignatureT = typename decltype(makeCallableInternalTypeByFunction <
-	//	typename CallableSignatureT::Callable, KeyTypeTupleT, ReturnTypeTupleT,
-	//	decltype(declval<typename CallableSignatureT::Callable>()(LambdaTaskIdentifier{}, KeyTypeTupleT{}, ReturnTypeTupleT{})) > (&CallableSignatureT::Callable::operator()));
 
 	using ReturnTypeTuple = typename ResolvedCallableInfo::ReturnTypeTuple;
 	using KeyTypeTuple = typename ResolvedCallableInfo::KeyTypeTuple;
 #undef ResolvedCallableInfo
 };
-
-//template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs>
-//struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
-//	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
-//{	
-//	CallableInfo()
-//	{
-//		using CallableSignatureResolved = typename CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>::CallableSignatureResolved;
-//		using OrderedReturnTypeTupleT = decltype(mapTuple(std::declval<ReturnTypeTupleT>(), index_sequence<Seqs...>{}));
-//		using OrderedBindingSlotTypeTupleT = decltype(mapTuple(std::declval<typename CallableSignatureResolved::ParamTypeTuple>(), std::declval<typename CallableSignatureResolved::BindingSlotIndexSequence>()));
-//
-//		//BindingSlotTypeChecker<0, typename CallableSignatureT::ParamTypeTuple, typename CallableSignatureT::OriginalSignature::ParamTypeTuple, OrderedReturnTypeTupleT>::check();
-//		BindingSlotTypeChecker<OrderedBindingSlotTypeTupleT, OrderedReturnTypeTupleT>::check();
-//	}
-//};
-
-//template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs>
-//struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>>
-//	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<true, CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexSeq> {};
 
 template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... CallableSignatureTs>
 struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, CallableSignatureTs...>
@@ -500,14 +465,52 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 #undef NextCallableInfo
 };
 
-//template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs, typename... CallableSignatureTs>
-//struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>, CallableSignatureTs...>
-//	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
-//	, CallableInfo<isFirstSignatureResolved<CallableSignatureTs...>(), CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...> {};
-//
-//template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs, typename... CallableSignatureTs>
-//struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>, CallableSignatureTs...>
-//	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<true, CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexSeq, CallableSignatureTs...> {};
+#if 0 // 미사용 코드 정리: 기록해둘만한 인터페이스 패턴
+/* Example: CallableInfo<CallableSignature, CallableSignature, AnyOtherType, CallableSignature, ...>
+ * 초안에서의 경우처럼 CallableSignature 인자 사이에 다른 타입을 끼워넣어서 별도의 처리를 할 수 있음.
+ * 
+ * #초안
+ * ```
+ *	Dependency(
+ *	    Task<Key0>(func0),                                                     // CallableSignature<Key0>
+ *	    Task<Key1>(func1, binding_slot),               BindingKeys(Key0)       // CallableSignature<Key1>, BindingKeyList<Key0>
+ *	    Task      (func2, binding_slot, binding_slot), BindingKeys(Key1, Key0) // CallableSignature<None>, BindingKeyList<Key1, Key0>
+ *	)
+ * ```
+ * 
+ * 위 코드는 아래의 CallableInfo를 생성함. (CS: CallableSignature, K: Key, B: BindingKeyList)
+ * CallableInfo< CS<K0>, CS<K1>, B<K0>, CS<None>, B<K1, K0> >
+ */
+
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
+	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
+{
+	CallableInfo()
+	{
+		using CallableSignatureResolved = typename CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>::CallableSignatureResolved;
+		using OrderedReturnTypeTupleT = decltype(mapTuple(std::declval<ReturnTypeTupleT>(), index_sequence<Seqs...>{}));
+		using OrderedBindingSlotTypeTupleT = decltype(mapTuple(std::declval<typename CallableSignatureResolved::ParamTypeTuple>(), std::declval<typename CallableSignatureResolved::BindingSlotIndexSequence>()));
+
+		//BindingSlotTypeChecker<0, typename CallableSignatureT::ParamTypeTuple, typename CallableSignatureT::OriginalSignature::ParamTypeTuple, OrderedReturnTypeTupleT>::check();
+		BindingSlotTypeChecker<OrderedBindingSlotTypeTupleT, OrderedReturnTypeTupleT>::check();
+	}
+};
+
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>>
+	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<true, CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexSeq> {};
+
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, size_t... Seqs, typename... CallableSignatureTs>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>, CallableSignatureTs...>
+	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, index_sequence<Seqs...>>
+	, CallableInfo<isFirstSignatureResolved<CallableSignatureTs...>(), CurrentReturnTypeTuple, CurrentKeyTypeTuple, CallableSignatureTs...> {};
+
+template<bool IsResolved, typename ReturnTypeTupleT, typename KeyTypeTupleT, typename CallableSignatureT, typename... KeyTs, typename... CallableSignatureTs>
+struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, BindingKeyList<KeyTs...>, CallableSignatureTs...>
+	: CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT, typename FindType<true, CurrentKeyTypeTuple, BindingKeyList<KeyTs...>>::FoundIndexSeq, CallableSignatureTs...> {};
+
+#endif
 
 ///////////////////////////////////////////////////////////////////////
 // makeCallableInfo utility
