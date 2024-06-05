@@ -135,6 +135,7 @@ struct CallableTaskKey<Callable, CallableInfoType, RetType, true> : public ITask
 		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTypeTupleMemory.data()));
 		_ret = _callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple));
 	}
+
 	void process() const override
 	{
 		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTypeTupleMemory.data()));
@@ -149,30 +150,36 @@ private:
 	uint32_t _definedIndex;
 };
 
-template<typename CallableInfoType, typename CallableSignature, typename RetTypeTemp>
-inline auto make_CallableTaskKey(CallableSignature&& collableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetTypeTemp& returnReference)
+template<typename CallableInfoType, typename CallableSignatureResolved, typename CallableSignature>
+inline auto make_CallableTaskKey(CallableSignature&& collableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, typename CallableSignatureResolved::RetType& returnReference)
 {
+	// CallableSignature
 	using Callable = typename CallableSignature::Callable;
 	using ArgTypeTuple = typename CallableSignature::ArgTypeTuple;
-	using RetType = typename CallableSignature::RetType;
+
+	// CallableSignatureResolved
+	using ParamTypeTuple = typename CallableSignatureResolved::ParamTypeTuple;
+	using RetType = typename CallableSignatureResolved::RetType;
 	
-	//static_assert(CallableSignature::is_resolved, "is not resolved type");
+	static_assert(CallableSignature::is_resolved || is_same_v<LambdaTaskIdentifier, tuple_element_t<1, ParamTypeTuple>>, "Did it!");
 
 	return new CallableTaskKey<Callable, conditional_t<CallableSignature::is_resolved, ArgTypeTuple, CallableInfoType>, RetType, CallableSignature::is_resolved == false>(std::forward<CallableSignature>(collableSignature), taskCommitInfo, returnReference);
 }
 
-template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) == 0, int> = 0>
+template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) == 0, int> E = -2>
 constexpr static void __createCallableTasks(std::unique_ptr<ITaskKey>* outCallableTasks, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskCallableTuple&& tuple, std::integer_sequence<uint32_t, I...>) {}
 
-template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) != 0, int> = 0>
+template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) != 0, int> E = -1>
 constexpr static void __createCallableTasks(std::unique_ptr<ITaskKey>* outCallableTasks, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskCallableTuple&& tuple, std::integer_sequence<uint32_t, I...>)
 {
 	using CallableInfoType = decltype(makeCallableInfoByTuple(std::declval<TaskCallableTuple>()));
-	using ReturnTypeTuple = typename CallableInfoType::ReturnTypeTuple;
+	
+	using CallableSignatureResolvedTuple = typename CallableInfoType::CallableSignatureResolvedTuple;
 
+	using ReturnTypeTuple = typename CallableInfoType::ReturnTypeTuple;
 	auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(taskCommitInfo->_returnTypeTupleMemory.data()));
 
-	(outCallableTasks[I].reset(make_CallableTaskKey<CallableInfoType>(std::get<I>(std::forward<TaskCallableTuple>(tuple)), taskCommitInfo, std::get<I>(returnTuple))), ...);
+	(outCallableTasks[I].reset(make_CallableTaskKey<CallableInfoType, std::tuple_element_t<I, CallableSignatureResolvedTuple>>(std::get<I>(std::forward<TaskCallableTuple>(tuple)), taskCommitInfo, std::get<I>(returnTuple))), ...);
 }
 
 template<typename TaskInfoList>

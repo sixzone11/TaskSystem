@@ -188,9 +188,12 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 
 	ITaskManager* taskManager = getDefaultTaskManager();
 	ITaskKey* taskKey = taskManager->createTask(move(openFileTasks));
+	//ITaskKey* taskKey = taskManager->createTask(move(t1));
 
 	return std::vector<char>();
 }
+
+#if 0
 
 namespace KeyA {
 	struct First : BindingKey {};
@@ -455,3 +458,5 @@ void test_ver2()
 	print(r);
 
 }
+
+#endif
