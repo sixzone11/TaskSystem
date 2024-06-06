@@ -344,16 +344,11 @@ constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args&&... args) {
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const) {
-	
-	auto a = CallableSignatureWithKey<Key, Ret(Type::*)(Params...) const, Ret, const Type*, Params...> {
+	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...) const, Ret, const Type*, Params...> {
 		CallableSignature<Ret(Type::*)(Params...) const, Ret, const Type*, Params...> {
 			std::forward< Ret(Type::*)(Params...) const>(f),
 		}
 	};
-
-	type_checker<typename decltype(a)::Callable>();
-
-	return a;
 }
 
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params, typename... Args,
@@ -464,15 +459,15 @@ struct CallableInfo<false, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 {
 	//static_assert(CallableSignatureT::is_resolved == true, "substitution is not finished");
 
-	CallableInfo()
-	{
-		type_checker<decltype(makeCallableSignature<
-			typename CallableSignatureT::KeyType,
-			typename CallableSignatureT::Callable,
-			decltype(declval<typename CallableSignatureT::Callable>()(declval<LambdaTaskIdentifier>(), declval<KeyTypeTupleT>(), declval<ReturnTypeTupleT>())),
-			LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
-		>(&CallableSignatureT::Callable::operator()))>();
-	}
+	//CallableInfo()
+	//{
+	//	type_checker<decltype(makeCallableSignature<
+	//		typename CallableSignatureT::KeyType,
+	//		typename CallableSignatureT::Callable,
+	//		decltype(declval<typename CallableSignatureT::Callable>()(declval<LambdaTaskIdentifier>(), declval<KeyTypeTupleT>(), declval<ReturnTypeTupleT>())),
+	//		LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
+	//	>(&CallableSignatureT::Callable::operator()))>();
+	//}
 
 	//static_assert(std::is_same_v<LambdaTaskIdentifier, std::tuple_element_t<0, typename ResolvedCallableInfo::CallableSignatureResolved::ParamTypeTuple>>, "Why Fail?");
 	using ReturnTypeTuple = typename ResolvedCallableInfo::ReturnTypeTuple;

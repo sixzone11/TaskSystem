@@ -73,25 +73,30 @@ private:
 
 extern "C" TASKSYSTEM_API ITaskManager * getDefaultTaskManager();
 
-template<typename Callable, typename ArgTypeTuple, typename RetType, bool isLambdaTask = false>
-struct CallableTaskKey : public ITaskKey
+template<typename Callable, typename RetType, typename SelectType>
+struct CallableTaskKey;
+
+template<typename Callable, typename RetType, typename... Args>
+struct CallableTaskKey<Callable, RetType, std::tuple<Args...>> : public ITaskKey
 {
+	using ArgTypeTuple = std::tuple<Args...>;
+
 	template<typename CallableSignature>
 	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
-		: _callable(std::move(callableSignature._callable))
+		: ITaskKey(taskCommitInfo)
+		, _callable(std::move(callableSignature._callable))
 		, _args(std::move(callableSignature._args))
-		, _commitInfo(taskCommitInfo)
 		, _ret(ret)
 	{}
 	~CallableTaskKey() override {}
 
 	void process() override
 	{
-		_ret = delegate_call(std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{});
+		new (&_ret) RetType(delegate_call(std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{}));
 	}
 	void process() const override
 	{
-		_ret = delegate_call(std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{});
+		new (&_ret) RetType(delegate_call(std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{}));
 	}
 
 	template<uint32_t... Iseq>
@@ -110,18 +115,15 @@ private:
 	Callable _callable;
 	ArgTypeTuple _args;
 	RetType& _ret;
-
-	std::shared_ptr<TaskCommitInfo> _commitInfo;
-	uint32_t _definedIndex;
 };
 
-template<typename Callable, typename CallableInfoType, typename RetType>
-struct CallableTaskKey<Callable, CallableInfoType, RetType, true> : public ITaskKey
+template<typename Callable, typename RetType, typename CallableInfoType>
+struct CallableTaskKey : public ITaskKey
 {
 	template<typename CallableSignature>
 	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
-		: _callable(std::move(callableSignature._callable))
-		, _commitInfo(taskCommitInfo)
+		: ITaskKey(taskCommitInfo)
+		, _callable(std::move(callableSignature._callable))
 		, _ret(ret)
 	{}
 
@@ -133,21 +135,18 @@ struct CallableTaskKey<Callable, CallableInfoType, RetType, true> : public ITask
 	void process() override
 	{
 		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTypeTupleMemory.data()));
-		_ret = _callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple));
+		new (&_ret) RetType(_callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple)));
 	}
 
 	void process() const override
 	{
 		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTypeTupleMemory.data()));
-		_ret = _callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple));
+		new (&_ret) RetType(_callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple)));
 	}
 
 private:
 	Callable _callable;
 	RetType& _ret;
-
-	std::shared_ptr<TaskCommitInfo> _commitInfo;
-	uint32_t _definedIndex;
 };
 
 template<typename CallableInfoType, typename CallableSignatureResolved, typename CallableSignature>
@@ -160,10 +159,11 @@ inline auto make_CallableTaskKey(CallableSignature&& collableSignature, std::sha
 	// CallableSignatureResolved
 	using ParamTypeTuple = typename CallableSignatureResolved::ParamTypeTuple;
 	using RetType = typename CallableSignatureResolved::RetType;
-	
-	static_assert(CallableSignature::is_resolved || is_same_v<LambdaTaskIdentifier, tuple_element_t<1, ParamTypeTuple>>, "Did it!");
 
-	return new CallableTaskKey<Callable, conditional_t<CallableSignature::is_resolved, ArgTypeTuple, CallableInfoType>, RetType, CallableSignature::is_resolved == false>(std::forward<CallableSignature>(collableSignature), taskCommitInfo, returnReference);
+	static_assert(CallableSignature::is_resolved || is_same_v<LambdaTaskIdentifier, tuple_element_t<1, ParamTypeTuple>>, "This CallableSignature is not substituted!");
+
+	using SelectType = conditional_t<CallableSignature::is_resolved, ArgTypeTuple, CallableInfoType>;
+	return new CallableTaskKey<Callable, RetType, SelectType>(std::forward<CallableSignature>(collableSignature), taskCommitInfo, returnReference);
 }
 
 template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) == 0, int> E = -2>
