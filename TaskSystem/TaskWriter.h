@@ -408,23 +408,25 @@ struct ITaskKey;
 struct TaskCommitInfo
 {
 	std::vector<TaskDefine> _taskDefines;
+	std::vector<bool> _taskUsed;
 	std::vector<uint32_t> _offsets;
 	std::vector<uint32_t> _links;
 	std::vector<uint32_t> _inputs;
 	std::vector<uint32_t> _outputs;
 	std::vector<uint32_t> _precedingCount;
 	std::vector<std::unique_ptr<ITaskKey>> _taskKeys;
-	std::vector<uint8_t> _returnTypeTupleMemory;
+	std::vector<uint8_t> _returnTupleMemory;
 
 	TaskCommitInfo(std::vector<TaskDefine>&& taskDefines, std::vector<uint32_t>&& offsets, std::vector<uint32_t>&& links, std::vector<uint32_t>&& inputs, std::vector<uint32_t>&& outputs, size_t sizeOfReturnTypeTuple)
 		: _taskDefines(std::move(taskDefines))
+		, _taskUsed(_taskDefines.size(), false)
 		, _offsets(std::move(offsets))
 		, _links(std::move(links))
 		, _inputs(std::move(inputs))
 		, _outputs(std::move(outputs))
 		, _precedingCount(_taskDefines.size() + 1, 1u)
 		, _taskKeys(_taskDefines.size())
-		, _returnTypeTupleMemory(sizeOfReturnTypeTuple)
+		, _returnTupleMemory(sizeOfReturnTypeTuple)
 	{
 		for (const uint32_t& link : _links)
 			_precedingCount[link]++;
@@ -433,6 +435,8 @@ struct TaskCommitInfo
 
 		//_taskKeys.reserve(_taskDefines.size());
 	}
+
+	virtual ~TaskCommitInfo() {}
 };
 
 struct FunctionTag {};

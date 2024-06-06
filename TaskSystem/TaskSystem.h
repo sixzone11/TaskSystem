@@ -134,13 +134,13 @@ struct CallableTaskKey : public ITaskKey
 
 	void process() override
 	{
-		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTypeTupleMemory.data()));
+		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTupleMemory.data()));
 		new (&_ret) RetType(_callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple)));
 	}
 
 	void process() const override
 	{
-		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTypeTupleMemory.data()));
+		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTupleMemory.data()));
 		new (&_ret) RetType(_callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple)));
 	}
 
@@ -177,7 +177,7 @@ constexpr static void __createCallableTasks(std::unique_ptr<ITaskKey>* outCallab
 	using CallableSignatureResolvedTuple = typename CallableInfoType::CallableSignatureResolvedTuple;
 
 	using ReturnTypeTuple = typename CallableInfoType::ReturnTypeTuple;
-	auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(taskCommitInfo->_returnTypeTupleMemory.data()));
+	auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(taskCommitInfo->_returnTupleMemory.data()));
 
 	(outCallableTasks[I].reset(make_CallableTaskKey<CallableInfoType, std::tuple_element_t<I, CallableSignatureResolvedTuple>>(std::get<I>(std::forward<TaskCallableTuple>(tuple)), taskCommitInfo, std::get<I>(returnTuple))), ...);
 }
@@ -191,20 +191,46 @@ inline void createCallableTasks(std::vector<std::unique_ptr<ITaskKey>>& outTaskK
 	__createCallableTasks(outTaskKeys.data(), taskCommitInfo, std::get<IndexTaskCallable>(std::forward<TaskInfoList>(taskInfoList)), std::make_integer_sequence<uint32_t, TaskMeta::NumManifests>{});
 }
 
+template<typename CallableInfoType>
+struct TaskCommitInfoWithCallable : TaskCommitInfo
+{
+	using ReturnTypeTuple = typename CallableInfoType::ReturnTypeTuple;
+
+	TaskCommitInfoWithCallable(std::vector<TaskDefine>&& taskDefines, std::vector<uint32_t>&& offsets, std::vector<uint32_t>&& links, std::vector<uint32_t>&& inputs, std::vector<uint32_t>&& outputs)
+		: TaskCommitInfo(std::move(taskDefines), std::move(offsets), std::move(links), std::move(inputs), std::move(outputs), sizeof(ReturnTypeTuple))
+	{}
+
+	~TaskCommitInfoWithCallable() override
+	{
+		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_returnTupleMemory.data()));
+		deleteReturns(returnTuple, std::make_index_sequence<tuple_size_v<ReturnTypeTuple>>{});
+	}
+
+	template<size_t... Iseq>
+	void deleteReturns(ReturnTypeTuple& returnTuple, std::integer_sequence<size_t, Iseq...>)
+	{
+		(deleteReturn<Iseq>(std::get<Iseq>(returnTuple)), ...);
+	}
+
+	template<size_t I, typename ReturnType>
+	void deleteReturn(ReturnType& returnRef) { if (_taskUsed[I]) returnRef.~ReturnType(); }
+};
+
 template<typename TaskInfoList>
 ITaskKey* ITaskManager::createTask(TaskInfoList&& taskInfoList)
 {
 	using TaskTuple = std::remove_reference_t<TaskInfoList>;
 	using TaskMeta = typename std::tuple_element_t<IndexTaskMeta, TaskTuple>;
-	using TaskCallableInfo = decltype(makeCallableInfoByTuple(std::declval<typename std::tuple_element_t<IndexTaskCallable, TaskInfoList>>()));
+	using CallableInfoType = decltype(makeCallableInfoByTuple(std::declval<typename std::tuple_element_t<IndexTaskCallable, TaskInfoList>>()));
 
-	auto taskCommitInfo = std::make_shared<TaskCommitInfo>(
-		moveDefinesToVec(std::forward<TaskInfoList>(taskInfoList)),
-		copyToVec<typename TaskGetter<TaskMeta>::Offsets, 1>(),
-		copyToVec<typename TaskGetter<TaskMeta>::Links>(),
-		copyToVec<typename TaskGetter<TaskMeta>::Inputs>(),
-		copyToVec<typename TaskGetter<TaskMeta>::Outputs>(),
-		sizeof(typename TaskCallableInfo::ReturnTypeTuple)
+	auto taskCommitInfo = std::shared_ptr<TaskCommitInfo>(
+		new TaskCommitInfoWithCallable<CallableInfoType>(
+			moveDefinesToVec(std::forward<TaskInfoList>(taskInfoList)),
+			copyToVec<typename TaskGetter<TaskMeta>::Offsets, 1>(),
+			copyToVec<typename TaskGetter<TaskMeta>::Links>(),
+			copyToVec<typename TaskGetter<TaskMeta>::Inputs>(),
+			copyToVec<typename TaskGetter<TaskMeta>::Outputs>()
+		)
 	);
 
 	auto& taskKeys = taskCommitInfo->_taskKeys;
