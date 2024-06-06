@@ -149,7 +149,7 @@ struct CallableInternalTypes<Ret(Type::*)(Params...) const>
 	using Callable = Ret(Type::*)(Params...) const;
 
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
-	using ParamTypeTuple = tuple<Params... >;
+	using ParamTypeTuple = tuple<Type*, Params... >;
 
 	using OriginalSignature = CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...>;
 };
@@ -161,7 +161,7 @@ struct CallableInternalTypes<Ret(Type::*)(Params...)>
 	using Callable = Ret(Type::*)(Params...);
 
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
-	using ParamTypeTuple = tuple<Params... >;
+	using ParamTypeTuple = tuple<Type*, Params... >;
 
 	using OriginalSignature = CallableSignature<Ret(Type::*)(Params...), Ret, Params...>;
 };
@@ -187,7 +187,7 @@ struct CallableInternalTypes<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, Result
 	constexpr static bool is_resolved = true;
 
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
-	using ParamTypeTuple = tuple<KeyTuple, ResultTuple&>;
+	using ParamTypeTuple = tuple<const Type*, LambdaTaskIdentifier, KeyTuple, ResultTuple&&>;
 
 	using OriginalSignature = CallableSignature<Ret(Type::*)(LambdaTaskIdentifier, KeyTuple, ResultTuple&&) const, Ret, LambdaTaskIdentifier, KeyTuple, ResultTuple&&>;
 };
