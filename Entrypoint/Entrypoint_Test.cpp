@@ -93,7 +93,7 @@ void print(const TaskWritten& taskWritten)
 #define KeyList(Key, ...) make_tuple(pseudo_void{}, pseudo_void{}, BindingKeys(Key, __VA_ARGS__))
 
 bool isExist(const char* filePath) { return true; }
-void* openFile(const char* filePath) { return nullptr; }
+void* openFile(const char* filePath) { return (void*)(filePath); }
 size_t getSize(void* fileDescriptor) { return 0; }
 std::vector<char> allocateMemory(size_t size) { return std::vector<char>(size); }
 int readFile(void* fileDescriptor, std::vector<char>& dstMemory, size_t size) { return 0; }
@@ -123,23 +123,6 @@ std::vector<char> loadDataFromFile(const char* filePath)
 
 	return memory;
 }
-
-#define IsEmptyArgs__(_1, _2, _3, _4, _5, _6, _7, _8, _9, ...) _9
-#define IsEmptyArgs(...) IsEmptyArgs__(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1)
-
-#define CommaConnection_0() ,
-#define CommaConnection_1()
-#define CommaConnection_Select(N) CommaConnection_ ## N()
-#define CommaConnection_Expand(N) CommaConnection_Select(N)
-#define CommaConnection(...) CommaConnection_Expand(IsEmptyArgs(__VA_ARGS__))
-
-#define TaskProcessBegin(task_name, ...)		auto task_name = Task(__VA_ARGS__ ProcessBlock()
-#define TaskProcessNext(task_name, ...)			); auto task_name = Task(__VA_ARGS__ ProcessBlock()
-#define TaskProcessEnd() )
-
-#define Capture(...)							ProcessBlock(__VA_ARGS__)
-#define TaskProcessBeginCapture(task_name, ...)	auto task_name = Task(__VA_ARGS__
-#define TaskProcessNextCapture(task_name, ...)	); auto task_name = Task(__VA_ARGS__
 
 std::vector<char> loadDataFromFileByTask(const char* filePath)
 {
@@ -181,19 +164,14 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 
 	auto openFileTasks = Dependency( move(t1), move(t2), move(t3));
 
-	constexpr size_t sizeof_t1 = sizeof(t1);
-	constexpr size_t sizeof_t2 = sizeof(t2);
-	constexpr size_t sizeof_t3 = sizeof(t3);
-	constexpr size_t sizeof_openFileTasks = sizeof(openFileTasks);
-
 	ITaskManager* taskManager = getDefaultTaskManager();
 	ITaskKey* taskKey = taskManager->createTask(move(openFileTasks));
 	//ITaskKey* taskKey = taskManager->createTask(move(t1));
 
+	taskManager->commitTask(taskKey);
+
 	return std::vector<char>();
 }
-
-#if 0
 
 namespace KeyA {
 	struct First : BindingKey {};
@@ -300,6 +278,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 
 void test_ver2()
 {
+	loadDataFromFileByTask("");
 	auto debugTask = Task("Task");
 
 	auto debugChain =
@@ -458,5 +437,3 @@ void test_ver2()
 	print(r);
 
 }
-
-#endif

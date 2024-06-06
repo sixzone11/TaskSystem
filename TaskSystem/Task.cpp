@@ -7,17 +7,8 @@
 
 struct TaskKeyImpl : public ITaskKey
 {
-	TaskKeyImpl(std::shared_ptr<TaskCommitInfo>&& commitInfo, const uint32_t definedIndex)
-		: _commitInfo(std::move(commitInfo))
-		, _definedIndex(definedIndex)
-	{
-	}
-
-	void process() override {}
-	void process() const override {}
-
-	std::shared_ptr<TaskCommitInfo> _commitInfo;
-	uint32_t _definedIndex;
+public:
+	std::shared_ptr<TaskCommitInfo>& getCommitInfo() { return _commitInfo; }
 };
 
 std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey)
@@ -28,21 +19,24 @@ std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey)
 
 class TaskManagerImpl : public ITaskManager
 {
-	ITaskKey* createTask(std::shared_ptr<TaskCommitInfo>&& taskCommitInfo) override
-	{
-		auto& defines = taskCommitInfo->_taskDefines;
-		auto& taskKeys = taskCommitInfo->_taskKeys;
-
-		uint32_t i = 0;
-		for( auto const& define : defines )
-		{
-			taskKeys.emplace_back(new TaskKeyImpl(std::move(taskCommitInfo), i));
-			++i;
-		}
-
-		return taskKeys.front().get();
-	}
+	bool commitTask(ITaskKey* taskKey) const override;
 };
+
+bool TaskManagerImpl::commitTask(ITaskKey* taskKey) const
+{
+	auto commitInfo = static_cast<TaskKeyImpl*>(taskKey)->getCommitInfo();
+	
+	int i = 0;
+	for (auto& task : commitInfo->_taskKeys)
+	{
+		commitInfo->_taskUsed[i++] = true;
+		task->process();
+
+		task.reset();
+	}
+
+	return true;
+}
 
 ITaskManager* getDefaultTaskManager()
 {

@@ -48,12 +48,18 @@ extern TaskExecutePoint g_taskExecutePointAsyncWorkerThread;
 
 struct ITaskKey
 {
+	ITaskKey() = default;
+	ITaskKey(std::shared_ptr<TaskCommitInfo>& commitInfo)
+		: _commitInfo(commitInfo) {}
 	virtual ~ITaskKey() {}
 
 	virtual void process() = 0;
 	virtual void process() const = 0;
 
 	friend TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey);
+
+protected:
+	std::shared_ptr<TaskCommitInfo> _commitInfo;
 };
 TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey);
 
@@ -62,12 +68,12 @@ struct ITaskManager
 public:
 	template<typename TaskInfoList>
 	ITaskKey* createTask(TaskInfoList&& taskInfoList);
+	
+	virtual bool commitTask(ITaskKey* taskKey) const = 0;
 
 	virtual ~ITaskManager() {}
 
 private:
-	virtual ITaskKey* createTask(std::shared_ptr<TaskCommitInfo>&& taskCommitInfo) = 0;
-
 	//virtual TaskExecutePoint createTaskExecutePoint(TaskExecutePointDesc&& taskExecutePointDesc) = 0;
 };
 

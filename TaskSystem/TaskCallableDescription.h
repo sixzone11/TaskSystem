@@ -568,3 +568,22 @@ struct __Task_SwitchDefault {};
 #define AutoBindResult(Key, Var)	auto BindResult(Key, Var)
 
 #define TaskSwitchDefault			__Task_SwitchDefault{}
+
+
+
+#define IsEmptyArgs__(_1, _2, _3, _4, _5, _6, _7, _8, _9, ...) _9
+#define IsEmptyArgs(...) IsEmptyArgs__(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1)
+
+#define CommaConnection_0() ,
+#define CommaConnection_1()
+#define CommaConnection_Select(N) CommaConnection_ ## N()
+#define CommaConnection_Expand(N) CommaConnection_Select(N)
+#define CommaConnection(...) CommaConnection_Expand(IsEmptyArgs(__VA_ARGS__))
+
+#define TaskProcessBegin(task_name, ...)		auto task_name = Task(__VA_ARGS__ ProcessBlock()
+#define TaskProcessNext(task_name, ...)			); auto task_name = Task(__VA_ARGS__ ProcessBlock()
+#define TaskProcessEnd() )
+
+#define Capture(...)							ProcessBlock(__VA_ARGS__)
+#define TaskProcessBeginCapture(task_name, ...)	auto task_name = Task(__VA_ARGS__
+#define TaskProcessNextCapture(task_name, ...)	); auto task_name = Task(__VA_ARGS__
