@@ -6,7 +6,7 @@
 
 ///////////////////////////////////////////////////////////////////////
 // Type Checker
-template<typename T> void type_checker() { static_assert(false, ""); }
+template<typename T> void type_checker() { T a = -1; }
 
 using namespace std;
 
@@ -321,8 +321,8 @@ constexpr auto makeCallableSignature(Ret(*f)(Params...), Args&&... args) {
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...)) {
-	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...), Ret, Params...> {
-		CallableSignature<Ret(Type::*)(Params...), Ret, Params...> {
+	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...), Ret, Type*, Params...> {
+		CallableSignature<Ret(Type::*)(Params...), Ret, Type*, Params...> {
 			std::forward< Ret(Type::*)(Params...)>(f),
 		}
 	};
@@ -344,11 +344,16 @@ constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args&&... args) {
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const) {
-	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...) const, Ret, Params...> {
-		CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...> {
+	
+	auto a = CallableSignatureWithKey<Key, Ret(Type::*)(Params...) const, Ret, const Type*, Params...> {
+		CallableSignature<Ret(Type::*)(Params...) const, Ret, const Type*, Params...> {
 			std::forward< Ret(Type::*)(Params...) const>(f),
 		}
 	};
+
+	type_checker<typename decltype(a)::Callable>();
+
+	return a;
 }
 
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params, typename... Args,
@@ -439,7 +444,7 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 		using OrderedReturnTypeTupleT				= decltype(mapTuple(std::declval<ReturnTypeTupleT>(), OrderedBindingSlotArgIndexSequence{}));
 		using OrderedBindingSlotParamTypeTupleT		= decltype(mapTuple(std::declval<typename CallableSignatureT::ParamTypeTuple>(), std::declval<typename CallableSignatureT::BindingSlotIndexSequence>()));
 
-		type_checker<CallableSignatureT>();
+		//type_checker<CallableSignatureT>();
 		//type_checker<typename CallableSignatureT::ParamTypeTuple>();
 
 		BindingSlotTypeChecker<OrderedBindingSlotParamTypeTupleT, OrderedReturnTypeTupleT>::check();
@@ -461,12 +466,12 @@ struct CallableInfo<false, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 
 	CallableInfo()
 	{
-		//type_checker<decltype(makeCallableSignature<
-		//	typename CallableSignatureT::KeyType,
-		//	typename CallableSignatureT::Callable,
-		//	decltype(declval<typename CallableSignatureT::Callable>()(declval<LambdaTaskIdentifier>(), declval<KeyTypeTupleT>(), declval<ReturnTypeTupleT>())),
-		//	LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
-		//>(&CallableSignatureT::Callable::operator()))>();
+		type_checker<decltype(makeCallableSignature<
+			typename CallableSignatureT::KeyType,
+			typename CallableSignatureT::Callable,
+			decltype(declval<typename CallableSignatureT::Callable>()(declval<LambdaTaskIdentifier>(), declval<KeyTypeTupleT>(), declval<ReturnTypeTupleT>())),
+			LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
+		>(&CallableSignatureT::Callable::operator()))>();
 	}
 
 	//static_assert(std::is_same_v<LambdaTaskIdentifier, std::tuple_element_t<0, typename ResolvedCallableInfo::CallableSignatureResolved::ParamTypeTuple>>, "Why Fail?");
