@@ -438,12 +438,12 @@ template<typename ParamTypeTuple, typename ArgTypeTuple, size_t ArgIndex, size_t
 struct ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex, std::index_sequence<BindingSlotIndex, BindingSlotIndexSeq...>>
 {
 	using ArgTypeTupleResolved = decltype( std::tuple_cat(
-		std::tuple<std::conditional_t<ArgIndex == BindingSlotIndex, std::tuple_element_t<ArgIndex, ParamTypeTuple>&, std::tuple_element_t<ArgIndex, ArgTypeTuple>>>(),
-		typename std::conditional_t<
+		std::declval<std::tuple<std::conditional_t<ArgIndex == BindingSlotIndex, std::tuple_element_t<ArgIndex, ParamTypeTuple>&, std::tuple_element_t<ArgIndex, ArgTypeTuple>>>>(),
+		std::declval<typename std::conditional_t<
 		ArgIndex == BindingSlotIndex,
 		ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex + 1, std::index_sequence<BindingSlotIndexSeq...>>,
 		ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex + 1, std::index_sequence<BindingSlotIndex, BindingSlotIndexSeq...>>
-		>::ArgTypeTupleResolved()
+		>::ArgTypeTupleResolved>()
 		));
 	
 	//std::conditional_t<ArgIndex == BindingSlotIndex, std::tuple_element_t<ArgIndex, ParamTypeTuple>&, std::tuple_element_t<ArgIndex, ArgTypeTuple>>;
@@ -467,7 +467,7 @@ struct ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex, std::index_sequen
 	};
 
 	constexpr static size_t NumRemains = std::tuple_size_v<ArgTypeTuple> - ArgIndex;
-	using ArgTypeTupleResolved = typename RemainArgTuple<ArgTypeTuple, ArgIndex, std::make_integer_sequence<NumRemains>>::ArgTypeTupleResolved;
+	using ArgTypeTupleResolved = typename RemainArgTuple<ArgTypeTuple, ArgIndex, std::make_index_sequence<NumRemains>>::ArgTypeTupleResolved;
 };
 
 ///////////////////////////////////////////////////////////////////////
