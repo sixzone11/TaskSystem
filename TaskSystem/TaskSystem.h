@@ -96,26 +96,41 @@ struct CallableTaskKey<Callable, RetType, std::tuple<Args...>> : public ITaskKey
 	{}
 	~CallableTaskKey() override {}
 
+	using is_void_return_type = std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>;
+	using is_member_function_type = std::conditional_t<std::is_member_function_pointer_v<Callable>, std::true_type, std::false_type>;
+
 	void process() override
 	{
-		new (&_ret) RetType(delegate_call(std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{}));
+		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{}));
 	}
 	void process() const override
 	{
-		new (&_ret) RetType(delegate_call(std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{}));
+		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{}));
 	}
 
 	template<uint32_t... Iseq>
-	auto delegate_call(std::false_type, std::integer_sequence<uint32_t, Iseq...>) { return _callable(std::get<Iseq>(_args)...); }
+	auto delegate_call(std::false_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) { return _callable(std::get<Iseq>(_args)...); }
 
 	template<uint32_t... Iseq>
-	auto delegate_call(std::false_type, std::integer_sequence<uint32_t, Iseq...>) const { return _callable(std::get<Iseq>(_args)...); }
+	auto delegate_call(std::false_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) const { return _callable(std::get<Iseq>(_args)...); }
+
+	template<uint32_t Izero, uint32_t... Iseq>
+	auto delegate_call(std::false_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
+
+	template<uint32_t Izero, uint32_t... Iseq>
+	auto delegate_call(std::false_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) const { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
 	
 	template<uint32_t... Iseq>
-	auto delegate_call(std::true_type, std::integer_sequence<uint32_t, Iseq...>) { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
+	auto delegate_call(std::true_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
 
 	template<uint32_t... Iseq>
-	auto delegate_call(std::true_type, std::integer_sequence<uint32_t, Iseq...>) const { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
+	auto delegate_call(std::true_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) const { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
+
+	template<uint32_t Izero, uint32_t... Iseq>
+	auto delegate_call(std::true_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
+
+	template<uint32_t Izero, uint32_t... Iseq>
+	auto delegate_call(std::true_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) const { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
 
 private:
 	Callable _callable;
@@ -131,7 +146,9 @@ struct CallableTaskKey : public ITaskKey
 		: ITaskKey(taskCommitInfo)
 		, _callable(std::move(callableSignature._callable))
 		, _ret(ret)
-	{}
+	{
+		//static_assert(is_same_v<LambdaTaskIdentifier, tuple_element_t<1, ParamTypeTuple>>, "This CallableSignature is not substituted!");
+	}
 
 	~CallableTaskKey() override {}
 
@@ -165,8 +182,6 @@ inline auto make_CallableTaskKey(CallableSignature&& collableSignature, std::sha
 	// CallableSignatureResolved
 	using ParamTypeTuple = typename CallableSignatureResolved::ParamTypeTuple;
 	using RetType = typename CallableSignatureResolved::RetType;
-
-	static_assert(CallableSignature::is_resolved || is_same_v<LambdaTaskIdentifier, tuple_element_t<1, ParamTypeTuple>>, "This CallableSignature is not substituted!");
 
 	using SelectType = conditional_t<CallableSignature::is_resolved, ArgTypeTuple, CallableInfoType>;
 	return new CallableTaskKey<Callable, RetType, SelectType>(std::forward<CallableSignature>(collableSignature), taskCommitInfo, returnReference);

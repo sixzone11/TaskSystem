@@ -85,7 +85,6 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 
 	ITaskManager* taskManager = getDefaultTaskManager();
 	ITaskKey* taskKey = taskManager->createTask(move(openFileTasks));
-	//ITaskKey* taskKey = taskManager->createTask(move(t1));
 
 	taskManager->commitTask(taskKey);
 
@@ -108,16 +107,7 @@ namespace KeyB {
 
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 {
-	if (isExist(filePath) == false)
-		return std::vector<char>();
-
-	// Member Function Test
-	struct MemberFunctionTest
-	{
-		bool func(const char*) { return false; }
-	};
-	MemberFunctionTest memberFunctionTest;
-	auto testTask = Task(&MemberFunctionTest::func, &memberFunctionTest);
+	ITaskManager* taskManager = getDefaultTaskManager();
 
 	auto openFileTaskChainA = Dependency(
 		Task(isExist, filePath),
@@ -135,6 +125,11 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 				return memory;
 		})
 	);
+
+	{
+		ITaskKey* taskKey = taskManager->createTask(move(openFileTaskChainA));
+		taskManager->commitTask(taskKey);
+	}
 
 	auto integral_expression = []() { return 5; };
 
@@ -355,4 +350,21 @@ void test_ver2()
 
 	print(r);
 
+}
+
+void MemberFunctionTest()
+{
+	ITaskManager* taskManager = getDefaultTaskManager();
+
+	// Member Function Test
+	struct MemberFunctionTest
+	{
+		bool func(const char*) { return false; }
+	};
+	MemberFunctionTest memberFunctionTest;
+	auto testTask = Task(&MemberFunctionTest::func, &memberFunctionTest, "test code");
+
+	ITaskKey* taskKey = taskManager->createTask(Dependency(move(testTask)));
+	//ITaskKey* taskKey = taskManager->createTask(move(testTask));
+	taskManager->commitTask(taskKey);
 }
