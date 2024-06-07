@@ -149,7 +149,7 @@ struct CallableInternalTypes<Ret(Type::*)(Params...) const>
 	using Callable = Ret(Type::*)(Params...) const;
 
 	using RetType = conditional_t<is_void_v<Ret>, pseudo_void, Ret>;
-	using ParamTypeTuple = tuple<Type*, Params... >;
+	using ParamTypeTuple = tuple<const Type*, Params... >;
 
 	using OriginalSignature = CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...>;
 };
@@ -322,7 +322,7 @@ template<typename Key = BindingKey_None, typename Type, typename Ret, typename..
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...)) {
 	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...), Ret, Type*, Params...> {
-		CallableSignature<Ret(Type::*)(Params...), Ret, Type*, Params...> {
+		CallableSignature<Ret(Type::*)(Params...), Ret, Params...> {
 			std::forward< Ret(Type::*)(Params...)>(f),
 		}
 	};
@@ -344,8 +344,8 @@ constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args&&... args) {
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const) {
-	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...) const, Ret, const Type*, Params...> {
-		CallableSignature<Ret(Type::*)(Params...) const, Ret, const Type*, Params...> {
+	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...) const, Ret, Params...> {
+		CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...> {
 			std::forward< Ret(Type::*)(Params...) const>(f),
 		}
 	};
