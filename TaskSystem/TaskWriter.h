@@ -753,3 +753,86 @@ auto TaskWriter::junction(TaskList&&... list)
 }
 
 #define GetResultOfTask(Task)		std::get<find_type_in_tuple<true, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>::KeyType, decltype(info)>::value>(resultTuple)
+
+
+///////////////////////////////////////////////////////////////////////
+//
+// Tuple Utilities
+//
+///////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////
+// Print Task
+
+static inline void print(std::vector<uint32_t>& v, const char* name)
+{
+	printf("%s: %zu\n\t[ ", name, v.size());
+	for (auto& e : v)
+	{
+		printf("%u ", e);
+	}
+	printf("]\n");
+}
+
+template<typename T>
+void printDefines(const T& t);
+
+// helper function to print a tuple of any size
+template<class Tuple, std::size_t N>
+struct TuplePrinter
+{
+	static void print(const Tuple& t)
+	{
+		TuplePrinter<Tuple, N - 1>::print(t);
+		printDefines(std::get<N - 1>(t));
+	}
+};
+
+template<class Tuple>
+struct TuplePrinter<Tuple, 1>
+{
+	static void print(const Tuple& t)
+	{
+		printDefines(std::get<0>(t));
+	}
+};
+
+template<typename... Args, std::enable_if_t<sizeof...(Args) == 0, int> = 0>
+void printDefines(const std::tuple<Args...>& t)
+{
+	std::cout << "()\n";
+}
+
+template<typename... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>
+void printDefines(const std::tuple<Args...>& t)
+{
+	std::cout << "(";
+	TuplePrinter<decltype(t), sizeof...(Args)>::print(t);
+	std::cout << ")\n";
+}
+
+inline static void printDefines(const TaskDefine& t)
+{
+	std::cout << "(" << t._taskName << ")\n";
+}
+// end helper function
+
+
+template<typename TaskWritten>
+void print(const TaskWritten& taskWritten)
+{
+	using TaskDefineTuple = typename std::tuple_element<0, TaskWritten>::type;
+	using TaskMeta = typename std::tuple_element<1, TaskWritten>::type;
+	const auto& taskDefines = std::get<0>(taskWritten);
+
+	auto offsets = copyToVec<typename TaskGetter<TaskMeta>::Offsets>();
+	auto links = copyToVec<typename TaskGetter<TaskMeta>::Links>();
+	auto inputs = copyToVec<typename TaskGetter<TaskMeta>::Inputs>();
+	auto outputs = copyToVec<typename TaskGetter<TaskMeta>::Outputs>();
+
+	print(offsets, "Offsets");
+	print(links, "Links");
+	print(inputs, "Inputs");
+	print(outputs, "Outputs");
+	printDefines(taskDefines);
+}
