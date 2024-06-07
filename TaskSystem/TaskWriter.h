@@ -199,6 +199,8 @@ public:
 	constexpr static const std::tuple<uint32_t> _inputs{ 0 };
 	constexpr static const std::tuple<uint32_t> _outputs{ 0 };
 	constexpr static const std::tuple<uint32_t, uint32_t> _precedingCount{ 0, 1 };
+
+	constexpr static const uint32_t NumManifests = 1;
 };
 
 template<>
@@ -483,7 +485,7 @@ struct TaskWriter
 {
 	static auto task(const char* taskName)
 	{
-		return std::make_tuple(TaskDefine{ taskName }, TaskMeta{}, NullCallableSignature{});
+		return std::make_tuple(std::make_tuple(TaskDefine{ taskName }), TaskMeta{}, std::make_tuple(NullCallableSignature{}));
 	}
 
 	// Note(jiman): concept을 쓸 수 없으니 비슷하게라도 만들고 싶은데...
@@ -518,7 +520,7 @@ struct TaskWriter
 		//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
 		// using CallableSignature = decltype(makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
 		// return std::make_tuple(TaskDefine{}, TaskMeta{}, CallableSignature{});
-		return std::make_tuple(TaskDefine{}, TaskMeta{}, makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
+		return std::make_tuple(std::make_tuple(TaskDefine{}), TaskMeta{}, std::make_tuple(makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...)));
 	}
 
 	template<typename... TaskList>
@@ -675,17 +677,15 @@ private:
 
 public:
 	constexpr static auto getTaskDefines(TaskList&&... list) {
-		return std::tuple_cat(make_tuple_if_not_void(std::get<IndexTaskDefine>(std::forward<TaskList>(list)))...);
+		//return std::tuple_cat(make_tuple_if_not_void(std::get<IndexTaskDefine>(std::forward<TaskList>(list)))...);
+		return std::tuple_cat( std::get<IndexTaskDefine>(std::forward<TaskList>(list)) ...);
 	}
 
 	using TaskMetaTuple = typename std::remove_const_t<decltype(
 		std::tuple_cat(make_tuple_if_not_void(typename std::tuple_element_t<IndexTaskMeta, TaskList>{})...)) > ; /* Resolved(1): remove_const를 깜빡함. */
 
 	constexpr static auto getTaskCallableAsTuple(TaskList&&... list) {
-		return std::tuple_cat(
-			(is_callable_signature_v<typename std::tuple_element_t<IndexTaskCallable, TaskList>> ?
-			std::make_tuple(std::get<IndexTaskCallable>(list)) :
-			std::get<IndexTaskCallable>(list)) ...);
+		return std::tuple_cat( std::get<IndexTaskCallable>(std::forward<TaskList>(list)) ... );
 	}
 };
 
@@ -752,7 +752,7 @@ auto TaskWriter::junction(TaskList&&... list)
 	return std::make_tuple(getTaskDefines(std::forward<TaskList>(list)...), TaskMetaJunction<TaskMetaTuple<TaskList...>>{}, getTaskCallables(std::forward<TaskList>(list)...));
 }
 
-#define GetResultOfTask(Task)		std::get<find_type_in_tuple<true, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>::KeyType, decltype(info)>::value>(resultTuple)
+#define GetResultOfTask(Task)		std::get<find_type_in_tuple<true, std::tuple_element_t<0, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>>::KeyType, decltype(info)>::value>(resultTuple)
 
 
 ///////////////////////////////////////////////////////////////////////

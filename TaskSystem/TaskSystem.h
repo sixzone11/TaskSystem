@@ -177,13 +177,14 @@ inline auto make_CallableTaskKey(CallableSignature&& collableSignature, std::sha
 {
 	// CallableSignature
 	using Callable = typename CallableSignature::Callable;
-	using ArgTypeTuple = typename CallableSignature::ArgTypeTuple;
+	using ArgTypeTupleResolved = typename CallableSignature::ArgTypeTuple;
 
 	// CallableSignatureResolved
 	using ParamTypeTuple = typename CallableSignatureResolved::ParamTypeTuple;
 	using RetType = typename CallableSignatureResolved::RetType;
+	//using ArgTypeTupleResolved = typename CallableSignatureResolved::ArgTypeTuple;
 
-	using SelectType = conditional_t<CallableSignature::is_resolved, ArgTypeTuple, CallableInfoType>;
+	using SelectType = conditional_t<CallableSignature::is_resolved, ArgTypeTupleResolved, CallableInfoType>;
 	return new CallableTaskKey<Callable, RetType, SelectType>(std::forward<CallableSignature>(collableSignature), taskCommitInfo, returnReference);
 }
 

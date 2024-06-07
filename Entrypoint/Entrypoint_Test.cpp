@@ -364,7 +364,7 @@ void MemberFunctionTest()
 	MemberFunctionTest memberFunctionTest;
 	auto testTask = Task(&MemberFunctionTest::func, &memberFunctionTest, "test code");
 
-	ITaskKey* taskKey = taskManager->createTask(Dependency(move(testTask)));
-	//ITaskKey* taskKey = taskManager->createTask(move(testTask));
+	//ITaskKey* taskKey = taskManager->createTask(Dependency(move(testTask)));
+	ITaskKey* taskKey = taskManager->createTask(move(testTask));
 	taskManager->commitTask(taskKey);
 }

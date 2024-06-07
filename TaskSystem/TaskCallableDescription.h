@@ -15,8 +15,9 @@ using namespace std;
 
 struct BindingSlot
 {
-	template<typename T> operator T && () const;
-	template<typename T> operator T& () const;
+	// Note: 링크 시 아래 casting operator overloading의 기호가 필요하면 argument passing을 대응하는 부분이 잘못됐을 것.
+	template<typename T> operator T && () const { static_assert(false, "why is this required?"); }
+	template<typename T> operator T& () const { static_assert(false, "why is this required?"); }
 };
 
 template<typename T>	struct is_binding_slot : conditional_t<is_base_of_v<BindingSlot, T>, true_type, false_type> {};
@@ -415,6 +416,60 @@ constexpr bool isFirstSignatureResolved()
 	return remove_reference_t<CallableSignatureT>::is_resolved;
 }
 
+template<typename ParamTypeTuple, typename ArgTypeTuple, size_t ArgIndex, typename BindingSlotIndexSequence>
+struct ResolveArgTuple;
+
+template<typename ParamTypeTuple, typename ArgTypeTuple, typename BindingSlotIndexSequence>
+struct ResolveArgTupleType;
+
+template<typename ParamTypeTuple, typename ArgTypeTuple>
+struct ResolveArgTupleType<ParamTypeTuple, ArgTypeTuple, std::index_sequence<>>
+{
+	using ArgTypeTupleResolved = ArgTypeTuple;
+};
+
+template<typename ParamTypeTuple, typename ArgTypeTuple, typename BindingSlotIndexSequence>
+struct ResolveArgTupleType
+{
+	using ArgTypeTupleResolved = typename ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, 0, BindingSlotIndexSequence>::ArgTypeTupleResolved;
+};
+
+template<typename ParamTypeTuple, typename ArgTypeTuple, size_t ArgIndex, size_t BindingSlotIndex, size_t... BindingSlotIndexSeq>
+struct ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex, std::index_sequence<BindingSlotIndex, BindingSlotIndexSeq...>>
+{
+	using ArgTypeTupleResolved = decltype( std::tuple_cat(
+		std::tuple<std::conditional_t<ArgIndex == BindingSlotIndex, std::tuple_element_t<ArgIndex, ParamTypeTuple>&, std::tuple_element_t<ArgIndex, ArgTypeTuple>>>(),
+		typename std::conditional_t<
+		ArgIndex == BindingSlotIndex,
+		ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex + 1, std::index_sequence<BindingSlotIndexSeq...>>,
+		ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex + 1, std::index_sequence<BindingSlotIndex, BindingSlotIndexSeq...>>
+		>::ArgTypeTupleResolved()
+		));
+	
+	//std::conditional_t<ArgIndex == BindingSlotIndex, std::tuple_element_t<ArgIndex, ParamTypeTuple>&, std::tuple_element_t<ArgIndex, ArgTypeTuple>>;
+	//typename std::conditional_t<
+	//	ArgIndex == BindingSlotIndex,
+	//	ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex + 1, std::index_sequence<BindingSlotIndexSeq...>>,
+	//	ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex + 1, std::index_sequence<BindingSlotIndex, BindingSlotIndexSeq...>>
+	//>::ArgTypeTupleResolved;
+};
+
+template<typename ParamTypeTuple, typename ArgTypeTuple, size_t ArgIndex>
+struct ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex, std::index_sequence<>>
+{
+	template<typename ArgTypeTuple, size_t BeginArgIndex, typename RemainIndexSeq>
+	struct RemainArgTuple;
+
+	template<typename ArgTypeTuple, size_t BeginArgIndex, size_t... ArgIndices>
+	struct RemainArgTuple<ArgTypeTuple, BeginArgIndex, std::index_sequence<ArgIndices...>>
+	{
+		using ArgTypeTupleResolved = std::tuple<std::tuple_element_t<(BeginArgIndex + ArgIndices), ArgTypeTuple> ... >;
+	};
+
+	constexpr static size_t NumRemains = std::tuple_size_v<ArgTypeTuple> - ArgIndex;
+	using ArgTypeTupleResolved = typename RemainArgTuple<ArgTypeTuple, ArgIndex, std::make_integer_sequence<NumRemains>>::ArgTypeTupleResolved;
+};
+
 ///////////////////////////////////////////////////////////////////////
 // CallableInfo
 
@@ -439,10 +494,13 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 		using OrderedReturnTypeTupleT				= decltype(mapTuple(std::declval<ReturnTypeTupleT>(), OrderedBindingSlotArgIndexSequence{}));
 		using OrderedBindingSlotParamTypeTupleT		= decltype(mapTuple(std::declval<typename CallableSignatureT::ParamTypeTuple>(), std::declval<typename CallableSignatureT::BindingSlotIndexSequence>()));
 
-		//type_checker<CallableSignatureT>();
-		//type_checker<typename CallableSignatureT::ParamTypeTuple>();
-
 		BindingSlotTypeChecker<OrderedBindingSlotParamTypeTupleT, OrderedReturnTypeTupleT>::check();
+
+		using ArgTupleTypeResolved = typename ResolveArgTupleType<
+			typename CallableSignatureT::ParamTypeTuple,
+			typename CallableSignatureT::ArgTypeTuple,
+			typename CallableSignatureT::BindingSlotIndexSequence
+		>::ArgTypeTupleResolved;
 	}
 };
 
@@ -457,19 +515,6 @@ struct CallableInfo<false, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatureT>
 	>(&CallableSignatureT::Callable::operator())) >
 	: ResolvedCallableInfo
 {
-	//static_assert(CallableSignatureT::is_resolved == true, "substitution is not finished");
-
-	//CallableInfo()
-	//{
-	//	type_checker<decltype(makeCallableSignature<
-	//		typename CallableSignatureT::KeyType,
-	//		typename CallableSignatureT::Callable,
-	//		decltype(declval<typename CallableSignatureT::Callable>()(declval<LambdaTaskIdentifier>(), declval<KeyTypeTupleT>(), declval<ReturnTypeTupleT>())),
-	//		LambdaTaskIdentifier, KeyTypeTupleT, ReturnTypeTupleT&&
-	//	>(&CallableSignatureT::Callable::operator()))>();
-	//}
-
-	//static_assert(std::is_same_v<LambdaTaskIdentifier, std::tuple_element_t<0, typename ResolvedCallableInfo::CallableSignatureResolved::ParamTypeTuple>>, "Why Fail?");
 	using ReturnTypeTuple = typename ResolvedCallableInfo::ReturnTypeTuple;
 	using KeyTypeTuple = typename ResolvedCallableInfo::KeyTypeTuple;
 #undef ResolvedCallableInfo
