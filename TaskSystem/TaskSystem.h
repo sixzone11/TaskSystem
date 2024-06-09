@@ -49,21 +49,116 @@ private:
 
 extern "C" TASKSYSTEM_API ITaskManager * getDefaultTaskManager();
 
-template<typename Callable, typename RetType, typename SelectType>
+template<typename CallableInfoType, size_t I, typename Callable, typename SelectTaskIdentifier>
 struct CallableTaskKey;
 
-template<typename Callable, typename RetType, typename... Args>
-struct CallableTaskKey<Callable, RetType, std::tuple<Args...>> : public ITaskKey
+template<typename CallableInfoType, size_t I, typename FunctionPointerAsCallable>
+struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTaskIdentifier> : public ITaskKey
 {
-	using ArgTypeTuple = std::tuple<Args...>;
+	// CallableInfoType
+	using CallableSignatureResolved = typename std::tuple_element_t<I, typename CallableInfoType::CallableSignatureResolvedTuple>;
+
+	using ReturnTypeTuple = typename CallableInfoType::ReturnTypeTuple;
+	using KeyTypeTuple = typename CallableInfoType::KeyTypeTuple;
+
+	using Callable = typename CallableSignatureResolved::Callable;
+	using RetType = typename CallableSignatureResolved::RetType;
+	using ArgTypeTupleResolved = typename CallableSignatureResolved::ArgTypeTuple;
+	
+
+	template<size_t ArgIndex, size_t KeyIndex>
+	struct mapper
+	{
+		template<typename ArgTypeTuple>
+		static auto& forwardOrReference(ArgTypeTuple&&, ReturnTypeTuple& returnTuple) { return std::get<KeyIndex>(returnTuple); }
+	};
+
+	template<size_t ArgIndex>
+	struct mapper<ArgIndex, -1>
+	{
+		template<typename ArgTypeTuple>
+		static auto forwardOrReference(ArgTypeTuple&& givenArgTuple, ReturnTypeTuple&)
+		{
+			return std::forward<std::tuple_element_t<ArgIndex, ArgTypeTuple>>(std::get<ArgIndex>(std::forward<ArgTypeTuple>(givenArgTuple)));
+		}
+	};
+
+	template<typename ArgTypeTupleGiven, size_t... ArgIndices, size_t... KeyIndices>
+	static ArgTypeTupleResolved resolveArgTuple(ArgTypeTupleGiven&& givenArgTuple, std::index_sequence<ArgIndices...>, std::index_sequence<KeyIndices...>, ReturnTypeTuple& returnTuple)
+	{
+		return std::forward_as_tuple((mapper<ArgIndices, KeyIndices>::forwardOrReference(std::forward<ArgTypeTupleGiven>(givenArgTuple), returnTuple)) ...);
+	}
+
+	template<typename... ArgsGiven, size_t... BindingSlotIndex, size_t... OrderedBindingKeyIndex>
+	static ArgTypeTupleResolved mapArgTuple(std::tuple<ArgsGiven...>&& givenArgTuple, std::index_sequence<BindingSlotIndex...>, std::index_sequence<OrderedBindingKeyIndex...>, ReturnTypeTuple& returnTuple)
+	{
+		using MatchedKeyIndexSequence = decltype(makeMatchedKeyIndexSequence(std::make_index_sequence<sizeof...(ArgsGiven)>(), std::index_sequence<BindingSlotIndex...>(), std::index_sequence<OrderedBindingKeyIndex...>()));
+		return resolveArgTuple(std::forward<std::tuple<ArgsGiven...>>(givenArgTuple), std::make_index_sequence<sizeof...(ArgsGiven)>(), MatchedKeyIndexSequence(), returnTuple);
+	}
+
+	template<typename CallableSignatureT>
+	static auto getOrderedBindingKeyIndexSequence()
+	{
+		using OrderedBindingSlotArgTypeTupleT = decltype(mapTuple(std::declval<typename CallableSignatureT::ArgTypeTuple>(), std::declval<typename CallableSignatureT::BindingSlotIndexSequence>()));
+		using OrderedBindingKeyIndexSequence = typename FindType<true, KeyTypeTuple, OrderedBindingSlotArgTypeTupleT>::FoundIndexSeq;
+		return OrderedBindingKeyIndexSequence{};
+	}
+
+	template<size_t ArgIndex, size_t BindingSlotIndex, size_t OrderedBindingKeyIndex>
+	struct MatchedKeyIndex { constexpr static size_t value = ArgIndex == BindingSlotIndex ? OrderedBindingKeyIndex : -1; };
+
+	template<size_t... Iseq1, size_t... Iseq2>
+	static constexpr std::index_sequence<Iseq1..., Iseq2...> index_sequence_cat(index_sequence<Iseq1...>, index_sequence<Iseq2...>) { return {}; }
+
+	template<size_t ArgIndex, size_t BindingSlotIndex>
+	struct CompareAndNext
+	{
+		template<size_t... ArgIndices, size_t... BindingSlotIndices, size_t... OrderedBindingKeyIndices>
+		static constexpr auto next(std::index_sequence<ArgIndices...>, std::index_sequence<BindingSlotIndices...>, std::index_sequence<OrderedBindingKeyIndices...>)
+		{
+			return makeMatchedKeyIndexSequence(std::index_sequence<ArgIndices...>{}, std::index_sequence<BindingSlotIndices...>{}, std::index_sequence<OrderedBindingKeyIndices...>{});
+		}
+	};
+
+	template<size_t ArgIndex>
+	struct CompareAndNext<ArgIndex, ArgIndex>
+	{
+		template<size_t BindingSlotIndex, size_t OrderedBindingKeyIndex, size_t... ArgIndices, size_t... BindingSlotIndices, size_t... OrderedBindingKeyIndices>
+		static constexpr auto next(std::index_sequence<ArgIndices...>, std::index_sequence<BindingSlotIndex, BindingSlotIndices...>, std::index_sequence<OrderedBindingKeyIndex, OrderedBindingKeyIndices...>)
+		{
+			return makeMatchedKeyIndexSequence(std::index_sequence<ArgIndices...>{}, std::index_sequence<BindingSlotIndices...>{}, std::index_sequence<OrderedBindingKeyIndices...>{});
+		}
+	};
+
+	template<size_t ArgIndex, size_t BindingSlotIndex, size_t OrderedBindingKeyIndex, size_t... ArgIndices, size_t... BindingSlotIndices, size_t... OrderedBindingKeyIndices>
+	static constexpr auto makeMatchedKeyIndexSequence(std::index_sequence<ArgIndex, ArgIndices...>, std::index_sequence<BindingSlotIndex, BindingSlotIndices...>, std::index_sequence<OrderedBindingKeyIndex, OrderedBindingKeyIndices...>)
+	{
+		return index_sequence_cat(
+			std::index_sequence<MatchedKeyIndex<ArgIndex, BindingSlotIndex, OrderedBindingKeyIndex>::value >{},
+			CompareAndNext<ArgIndex, BindingSlotIndex>::next(std::index_sequence<ArgIndices...>{}, std::index_sequence<BindingSlotIndex, BindingSlotIndices...>{}, std::index_sequence<OrderedBindingKeyIndex, OrderedBindingKeyIndices...>{}));
+	}
+
+	static auto makeMatchedKeyIndexSequence(std::index_sequence<>, std::index_sequence<>, std::index_sequence<>) { return std::index_sequence<>{}; }
+
+	template<size_t... ArgIndices>
+	static auto makeMatchedKeyIndexSequence(std::index_sequence<ArgIndices...>, std::index_sequence<>, std::index_sequence<>) { return std::index_sequence<(ArgIndices, -1)...>{}; }
+
+	template<size_t... BindingSlotIndices, size_t... OrderedBindingKeyIndices>
+	static auto makeMatchedKeyIndexSequence(std::index_sequence<>, std::index_sequence<BindingSlotIndices...>, std::index_sequence<OrderedBindingKeyIndices...>) {	static_assert(false, "Impossible"); }
 
 	template<typename CallableSignature>
 	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
 		: ITaskKey(taskCommitInfo)
-		, _callable(std::move(callableSignature._callable))
-		, _args(std::move(callableSignature._args))
+		, _callable(std::forward<Callable>(callableSignature._callable))
+		, _args(mapArgTuple(
+			std::forward<typename CallableSignature::ArgTypeTuple>(callableSignature._args),
+			typename CallableSignature::BindingSlotIndexSequence(),
+			getOrderedBindingKeyIndexSequence<CallableSignature>(),
+			*static_cast<ReturnTypeTuple*>(static_cast<void*>(taskCommitInfo->_returnTupleMemory.data())) ) )
 		, _ret(ret)
-	{}
+	{
+		static_assert(is_same_v<typename CallableSignatureResolved::Callable, typename CallableSignature::Callable>, "'Callable's given and resolved are must be same");
+	}
 	~CallableTaskKey() override {}
 
 	using is_void_return_type = std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>;
@@ -71,11 +166,11 @@ struct CallableTaskKey<Callable, RetType, std::tuple<Args...>> : public ITaskKey
 
 	void process() override
 	{
-		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{}));
+		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTupleResolved>>{}));
 	}
 	void process() const override
 	{
-		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTuple>>{}));
+		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTupleResolved>>{}));
 	}
 
 	template<uint32_t... Iseq>
@@ -104,26 +199,31 @@ struct CallableTaskKey<Callable, RetType, std::tuple<Args...>> : public ITaskKey
 
 private:
 	Callable _callable;
-	ArgTypeTuple _args;
+	ArgTypeTupleResolved _args;
 	RetType& _ret;
 };
 
-template<typename Callable, typename RetType, typename CallableInfoType>
-struct CallableTaskKey : public ITaskKey
+template<typename CallableInfoType, std::size_t I, typename Callable>
+struct CallableTaskKey<CallableInfoType, I, Callable, LambdaTaskIdentifier> : public ITaskKey
 {
+	using CallableSignatureResolved = typename std::tuple_element_t<I, typename CallableInfoType::CallableSignatureResolvedTuple>;
+
+	using ReturnTypeTuple = typename CallableInfoType::ReturnTypeTuple;
+	using KeyTypeTuple = typename CallableInfoType::KeyTypeTuple;
+
+	//using Callable = typename CallableSignatureResolved::Callable;
+	using RetType = typename CallableSignatureResolved::RetType;
+
 	template<typename CallableSignature>
 	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
 		: ITaskKey(taskCommitInfo)
-		, _callable(std::move(callableSignature._callable))
+		, _callable(std::forward<Callable>(callableSignature._callable))
 		, _ret(ret)
 	{
 		//static_assert(is_same_v<LambdaTaskIdentifier, tuple_element_t<1, ParamTypeTuple>>, "This CallableSignature is not substituted!");
 	}
 
 	~CallableTaskKey() override {}
-
-	using ReturnTypeTuple = typename CallableInfoType::ReturnTypeTuple;
-	using KeyTypeTuple = typename CallableInfoType::KeyTypeTuple;
 
 	void process() override
 	{
@@ -142,20 +242,11 @@ private:
 	RetType& _ret;
 };
 
-template<typename CallableInfoType, typename CallableSignatureResolved, typename CallableSignature>
-inline auto make_CallableTaskKey(CallableSignature&& collableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, typename CallableSignatureResolved::RetType& returnReference)
+template<typename CallableInfoType, size_t I, typename CallableSignatureT>
+inline auto make_CallableTaskKey(CallableSignatureT&& collableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, typename std::tuple_element_t<I, typename CallableInfoType::CallableSignatureResolvedTuple>::RetType& returnReference)
 {
-	// CallableSignature
-	using Callable = typename CallableSignature::Callable;
-	using ArgTypeTupleResolved = typename CallableSignature::ArgTypeTuple;
-
-	// CallableSignatureResolved
-	using ParamTypeTuple = typename CallableSignatureResolved::ParamTypeTuple;
-	using RetType = typename CallableSignatureResolved::RetType;
-	//using ArgTypeTupleResolved = typename CallableSignatureResolved::ArgTypeTuple;
-
-	using SelectType = conditional_t<CallableSignature::is_resolved, ArgTypeTupleResolved, CallableInfoType>;
-	return new CallableTaskKey<Callable, RetType, SelectType>(std::forward<CallableSignature>(collableSignature), taskCommitInfo, returnReference);
+	using SelectTaskIdentifier = conditional_t<CallableSignatureT::is_resolved, DefaultTaskIdentifier, LambdaTaskIdentifier>;
+	return new CallableTaskKey<CallableInfoType, I, typename CallableSignatureT::Callable, SelectTaskIdentifier>(std::forward<CallableSignatureT>(collableSignature), taskCommitInfo, returnReference);
 }
 
 template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) == 0, int> E = -2>
@@ -165,13 +256,11 @@ template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I
 constexpr static void __createCallableTasks(std::unique_ptr<ITaskKey>* outCallableTasks, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskCallableTuple&& tuple, std::integer_sequence<uint32_t, I...>)
 {
 	using CallableInfoType = decltype(makeCallableInfoByTuple(std::declval<TaskCallableTuple>()));
-	
-	using CallableSignatureResolvedTuple = typename CallableInfoType::CallableSignatureResolvedTuple;
 
 	using ReturnTypeTuple = typename CallableInfoType::ReturnTypeTuple;
 	auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(taskCommitInfo->_returnTupleMemory.data()));
 
-	(outCallableTasks[I].reset(make_CallableTaskKey<CallableInfoType, std::tuple_element_t<I, CallableSignatureResolvedTuple>>(std::get<I>(std::forward<TaskCallableTuple>(tuple)), taskCommitInfo, std::get<I>(returnTuple))), ...);
+	(outCallableTasks[I].reset(make_CallableTaskKey<CallableInfoType, I>(std::get<I>(std::forward<TaskCallableTuple>(tuple)), taskCommitInfo, std::get<I>(returnTuple))), ...);
 }
 
 template<typename TaskInfoList>
