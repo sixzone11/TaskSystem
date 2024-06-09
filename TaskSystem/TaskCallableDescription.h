@@ -180,6 +180,7 @@ struct CallableInternalTypes<_Callable,
 	using OriginalSignature = typename CallableInternalTypes<decltype(&_Callable::operator())>::OriginalSignature;
 };
 
+struct DefaultTaskIdentifier {};
 struct LambdaTaskIdentifier {};
 
 template<typename Type, typename Ret, typename KeyTuple, typename ResultTuple>
@@ -473,6 +474,15 @@ struct ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex, std::index_sequen
 	using ArgTypeTupleResolved = typename RemainArgTuple<ArgIndex, std::make_index_sequence<NumRemains>>::ArgTypeTupleResolved;
 };
 
+template<typename CallableSignatureT, typename ArgTypeTupleResolved>
+struct ResolveCallableSignature;
+
+template<typename CallableSignatureT, typename... Args>
+struct ResolveCallableSignature<CallableSignatureT, std::tuple<Args...>>
+{
+	using CallableSignatureResolved = CallableSignatureWithKey<typename CallableSignatureT::KeyType, typename CallableSignatureT::Callable, typename CallableSignatureT::RetType, Args...>;
+};
+
 ///////////////////////////////////////////////////////////////////////
 // CallableInfo
 
@@ -483,7 +493,9 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 	//	tuple_size_v<KeyTypeTupleT> == 0 ||
 	//	find_type_in_tuple<true, typename CallableSignatureT::KeyType, KeyTypeTupleT>::value == ~0ull, "Failed to makeCallableInfo since key is duplicated.");
 
-	using CallableSignatureResolved	= CallableSignatureT;
+	using ArgTupleTypeResolved = typename ResolveArgTupleType<typename CallableSignatureT::ParamTypeTuple, typename CallableSignatureT::ArgTypeTuple, typename CallableSignatureT::BindingSlotIndexSequence>::ArgTypeTupleResolved;
+
+	using CallableSignatureResolved = typename ResolveCallableSignature<CallableSignatureT, ArgTupleTypeResolved>::CallableSignatureResolved;
 	using CallableSignatureResolvedTuple = std::tuple<CallableSignatureResolved>;
 
 	using ReturnTypeTuple			= CurrentReturnTypeTupleSelf;
@@ -492,18 +504,12 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 	CallableInfo()
 	{
 		using OrderedBindingSlotArgTypeTupleT		= decltype(mapTuple(std::declval<typename CallableSignatureT::ArgTypeTuple>(), std::declval<typename CallableSignatureT::BindingSlotIndexSequence>()));
-		using OrderedBindingSlotArgIndexSequence	= typename FindType<true, CurrentKeyTypeTuple, OrderedBindingSlotArgTypeTupleT>::FoundIndexSeq;
+		using OrderedBindingKeyIndexSequence		= typename FindType<true, CurrentKeyTypeTuple, OrderedBindingSlotArgTypeTupleT>::FoundIndexSeq;
 
-		using OrderedReturnTypeTupleT				= decltype(mapTuple(std::declval<ReturnTypeTupleT>(), OrderedBindingSlotArgIndexSequence{}));
+		using OrderedReturnTypeTupleT				= decltype(mapTuple(std::declval<ReturnTypeTupleT>(), OrderedBindingKeyIndexSequence{}));
 		using OrderedBindingSlotParamTypeTupleT		= decltype(mapTuple(std::declval<typename CallableSignatureT::ParamTypeTuple>(), std::declval<typename CallableSignatureT::BindingSlotIndexSequence>()));
 
 		BindingSlotTypeChecker<OrderedBindingSlotParamTypeTupleT, OrderedReturnTypeTupleT>::check();
-
-		using ArgTupleTypeResolved = typename ResolveArgTupleType<
-			typename CallableSignatureT::ParamTypeTuple,
-			typename CallableSignatureT::ArgTypeTuple,
-			typename CallableSignatureT::BindingSlotIndexSequence
-		>::ArgTypeTupleResolved;
 	}
 };
 
