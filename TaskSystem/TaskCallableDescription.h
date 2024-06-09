@@ -270,7 +270,7 @@ struct CallableSignature
 	using BindingSlotIndexSequence = typename SelectBindingSlots<ArgTypeTuple>::BindingSlotIndexSequence;
 
 	Callable _callable;
-	ArgTypeTuple _args = tuple<Args...>{ Args{}... };
+	ArgTypeTuple _args;
 };
 
 //template<typename Callable, typename = std::enable_if_t<std::is_class_v<std::remove_reference_t<Callable>>>, typename... Args>
@@ -301,9 +301,10 @@ struct CallableSignatureWithKey : CallableSignature<Callable, Ret, Args...>
 // Functions
 template<typename Key = BindingKey_None, typename Ret, typename... Params, typename = enable_if_t<is_base_of_v<BindingKey, Key>>>
 constexpr auto makeCallableSignature(Ret(*f)(Params...)) {
-	return CallableSignatureWithKey<Key, Ret(*)(Params...), Ret, Params...> {
-		CallableSignature<Ret(*)(Params...), Ret, Params...> {
+	return CallableSignatureWithKey<Key, Ret(*)(Params...), Ret> {
+		CallableSignature<Ret(*)(Params...), Ret> {
 			std::forward< Ret(*)(Params...)>(f),
+			tuple<>{}
 		}
 	};
 }
@@ -322,9 +323,10 @@ constexpr auto makeCallableSignature(Ret(*f)(Params...), Args&&... args) {
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false) >>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...)) {
-	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...), Ret, Type*, Params...> {
-		CallableSignature<Ret(Type::*)(Params...), Ret, Params...> {
+	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...), Ret> {
+		CallableSignature<Ret(Type::*)(Params...), Ret> {
 			std::forward< Ret(Type::*)(Params...)>(f),
+			tuple<>{}
 		}
 	};
 }
@@ -345,9 +347,10 @@ constexpr auto makeCallableSignature(Ret(Type::*f)(Params...), Args&&... args) {
 template<typename Key = BindingKey_None, typename Type, typename Ret, typename... Params,
 	typename = enable_if_t< is_base_of_v<BindingKey, Key> && is_class_v<Type> && (is_base_of_v<BindingKey, Type> == false)>>
 constexpr auto makeCallableSignature(Ret(Type::*f)(Params...) const) {
-	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...) const, Ret, Params...> {
-		CallableSignature<Ret(Type::*)(Params...) const, Ret, Params...> {
+	return CallableSignatureWithKey<Key, Ret(Type::*)(Params...) const, Ret> {
+		CallableSignature<Ret(Type::*)(Params...) const, Ret> {
 			std::forward< Ret(Type::*)(Params...) const>(f),
+			tuple<>{}
 		}
 	};
 }
@@ -379,7 +382,7 @@ template<typename Key = BindingKey_None, typename Callable, typename... Args,
 	};
 }
 
-static void nothing() {}
+inline static void nothing() {}
 using NullCallableSignature = decltype(makeCallableSignature(nothing));
 
 template<typename OriginalTypeTupleT, typename ReturnTypeTupleT>
@@ -457,17 +460,17 @@ struct ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex, std::index_sequen
 template<typename ParamTypeTuple, typename ArgTypeTuple, size_t ArgIndex>
 struct ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex, std::index_sequence<>>
 {
-	template<typename ArgTypeTuple, size_t BeginArgIndex, typename RemainIndexSeq>
+	template<size_t BeginArgIndex, typename RemainIndexSeq>
 	struct RemainArgTuple;
 
-	template<typename ArgTypeTuple, size_t BeginArgIndex, size_t... ArgIndices>
-	struct RemainArgTuple<ArgTypeTuple, BeginArgIndex, std::index_sequence<ArgIndices...>>
+	template<size_t BeginArgIndex, size_t... ArgIndices>
+	struct RemainArgTuple<BeginArgIndex, std::index_sequence<ArgIndices...>>
 	{
 		using ArgTypeTupleResolved = std::tuple<std::tuple_element_t<(BeginArgIndex + ArgIndices), ArgTypeTuple> ... >;
 	};
 
 	constexpr static size_t NumRemains = std::tuple_size_v<ArgTypeTuple> - ArgIndex;
-	using ArgTypeTupleResolved = typename RemainArgTuple<ArgTypeTuple, ArgIndex, std::make_index_sequence<NumRemains>>::ArgTypeTupleResolved;
+	using ArgTypeTupleResolved = typename RemainArgTuple<ArgIndex, std::make_index_sequence<NumRemains>>::ArgTypeTupleResolved;
 };
 
 ///////////////////////////////////////////////////////////////////////

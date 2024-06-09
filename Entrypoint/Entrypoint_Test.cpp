@@ -81,10 +81,10 @@ std::vector<char> loadDataFromFileByTask(const char* filePath)
 	}
 	TaskProcessEnd();
 
-	auto openFileTasks = Dependency( move(t1), move(t2), move(t3));
+	auto openFileTasks = Dependency( std::move(t1), std::move(t2), std::move(t3));
 
 	ITaskManager* taskManager = getDefaultTaskManager();
-	ITaskKey* taskKey = taskManager->createTask(move(openFileTasks));
+	ITaskKey* taskKey = taskManager->createTask(std::move(openFileTasks));
 
 	taskManager->commitTask(taskKey);
 
@@ -127,7 +127,7 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	);
 
 	{
-		ITaskKey* taskKey = taskManager->createTask(move(openFileTaskChainA));
+		ITaskKey* taskKey = taskManager->createTask(std::move(openFileTaskChainA));
 		taskManager->commitTask(taskKey);
 	}
 

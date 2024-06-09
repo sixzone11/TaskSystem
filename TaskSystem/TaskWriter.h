@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <tuple>
 #include <vector>
+#include <memory>
+#include <iostream>
 
 #include "TaskCallableDescription.h"
 

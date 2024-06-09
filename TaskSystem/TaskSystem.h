@@ -16,36 +16,6 @@
 
 #include "TaskWriter.h"
 
-enum class TaskResult : uint32_t
-{
-	Succeeded,
-	Failed,
-};
-
-enum class TaskCommitFlag
-{
-	ExecuteLater = 0x00,
-	ExecuteImmediately = 0x01,
-	CreateAsSubTask = 0x02,
-
-	Default = ExecuteLater,
-};
-
-using TaskExecution = std::function<TaskResult(uint32_t, uint32_t)>;
-
-struct TaskExecutePoint {};
-struct TaskExecutePointDesc
-{
-	uint32_t _acceptableWorkerMask;
-	uint32_t _s;
-};
-
-extern thread_local TaskExecutePoint g_defaultPoint;
-
-extern TaskExecutePoint g_taskExecutePointMainThread;
-extern TaskExecutePoint g_taskExecutePointAsyncWorkerThread;
-
-
 struct ITaskKey
 {
 	ITaskKey() = default;
