@@ -429,7 +429,7 @@ struct ResolveArgTupleType;
 template<typename ParamTypeTuple, typename ArgTypeTuple>
 struct ResolveArgTupleType<ParamTypeTuple, ArgTypeTuple, std::index_sequence<>>
 {
-	using ArgTypeTupleResolved = ArgTypeTuple;
+	using ArgTypeTupleResolved = ParamTypeTuple;
 };
 
 template<typename ParamTypeTuple, typename ArgTypeTuple, typename BindingSlotIndexSequence>
@@ -442,7 +442,7 @@ template<typename ParamTypeTuple, typename ArgTypeTuple, size_t ArgIndex, size_t
 struct ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex, std::index_sequence<BindingSlotIndex, BindingSlotIndexSeq...>>
 {
 	using ArgTypeTupleResolved = decltype( std::tuple_cat(
-		std::declval<std::tuple<std::conditional_t<ArgIndex == BindingSlotIndex, std::tuple_element_t<ArgIndex, ParamTypeTuple>&, std::tuple_element_t<ArgIndex, ArgTypeTuple>>>>(),
+		std::declval<std::tuple<std::conditional_t<ArgIndex == BindingSlotIndex, std::tuple_element_t<ArgIndex, ParamTypeTuple>&, std::tuple_element_t<ArgIndex, ParamTypeTuple>>>>(),
 		std::declval<typename std::conditional_t<
 		ArgIndex == BindingSlotIndex,
 		ResolveArgTuple<ParamTypeTuple, ArgTypeTuple, ArgIndex + 1, std::index_sequence<BindingSlotIndexSeq...>>,
