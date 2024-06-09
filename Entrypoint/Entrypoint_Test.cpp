@@ -107,30 +107,6 @@ namespace KeyB {
 
 std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 {
-	ITaskManager* taskManager = getDefaultTaskManager();
-
-	auto openFileTaskChainA = Dependency(
-		Task(isExist, filePath),
-		Task<KeyA::First>(openFile, filePath),
-		Task<KeyA::Second>(WaitWhile(FileSystem::isFileIOJobAvailable()), getSize, KeyA::First()),
-		Task<KeyA::Third>(allocateMemory, KeyA::Second()),
-		Task<KeyA::Forth>(readFile, KeyA::First(), KeyA::Third(), KeyA::Second()),
-		Task<KeyA::Fifth>( ProcessBlock() {
-			int& readResult = GetResult(KeyA::Forth);
-			std::vector<char>& memory = GetResult(KeyA::Third);
-
-			if (readResult != 0)
-				return std::vector<char>();
-			else
-				return memory;
-		})
-	);
-
-	{
-		ITaskKey* taskKey = taskManager->createTask(std::move(openFileTaskChainA));
-		taskManager->commitTask(taskKey);
-	}
-
 	auto integral_expression = []() { return 5; };
 
 	auto chainConnectedTaskWithArg = Dependency(
@@ -190,9 +166,14 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 	return std::vector<char>();
 }
 
+void FunctionsTest(const char* filePath);
+
 void test_ver2()
 {
 	loadDataFromFileByTask("");
+
+	FunctionsTest("");
+
 	auto debugTask = Task("Task");
 
 	auto debugChain =
@@ -366,5 +347,30 @@ void MemberFunctionTest()
 
 	//ITaskKey* taskKey = taskManager->createTask(Dependency(move(testTask)));
 	ITaskKey* taskKey = taskManager->createTask(move(testTask));
+	taskManager->commitTask(taskKey);
+}
+
+void FunctionsTest(const char* filePath)
+{
+	ITaskManager* taskManager = getDefaultTaskManager();
+
+	auto openFileTaskChainA = Dependency(
+		Task(isExist, filePath),
+		Task<KeyA::First>(openFile, filePath),
+		Task<KeyA::Second>(WaitWhile(FileSystem::isFileIOJobAvailable()), getSize, KeyA::First()),
+		Task<KeyA::Third>(allocateMemory, KeyA::Second()),
+		Task<KeyA::Forth>(readFile, KeyA::First(), KeyA::Third(), KeyA::Second()),
+		Task<KeyA::Fifth>( ProcessBlock() {
+			int& readResult = GetResult(KeyA::Forth);
+			std::vector<char>& memory = GetResult(KeyA::Third);
+
+			if (readResult != 0)
+				return std::vector<char>();
+			else
+				return memory;
+		})
+	);
+
+	ITaskKey* taskKey = taskManager->createTask(std::move(openFileTaskChainA));
 	taskManager->commitTask(taskKey);
 }
