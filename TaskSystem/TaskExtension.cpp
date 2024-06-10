@@ -215,7 +215,7 @@ void testStringSignature()
 	auto t1 = MakeCallableSignatureStr(process_1, testFloatRet);
 	auto t2 = MakeCallableSignatureStr(process_2, test4, BindingKeyStr(process_1));
 
-	static_assert(is_same_v<decltype(BindingKeyVar(t1)), decltype(BindingKeyStr(process_1))>, "BindingKey(t1) and BindinigKey(process_1) is same");
+	static_assert(std::is_same_v<decltype(BindingKeyVar(t1)), decltype(BindingKeyStr(process_1))>, "BindingKey(t1) and BindinigKey(process_1) is same");
 
 	auto callableInfo2 = makeCallableInfo(
 		MakeCallableSignatureStr(process_0, testIntRet),

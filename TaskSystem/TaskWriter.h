@@ -648,16 +648,16 @@ using TaskMetaJunction = typename MakeTaskMetaJunction<Tuple>::TaskMetaJunction;
 
 
 template<typename T>
-struct is_callable_signature : false_type {};
+struct is_callable_signature : std::false_type {};
 
 template<typename Callable, typename Ret, typename... Args>
-struct is_callable_signature<CallableSignature<Callable, Ret, Args...>> : true_type {};
+struct is_callable_signature<CallableSignature<Callable, Ret, Args...>> : std::true_type {};
 
 template<typename Key, typename Callable, typename Ret, typename... Args>
 struct is_callable_signature<CallableSignatureWithKey<Key, Callable, Ret, Args...>> : is_callable_signature<CallableSignature<Callable, Ret, Args...>> {};
 
 template<typename... Keys>
-struct is_callable_signature<BindingKeyList<Keys...>> : true_type {};
+struct is_callable_signature<BindingKeyList<Keys...>> : std::true_type {};
 
 template<typename T>
 constexpr bool is_callable_signature_v = is_callable_signature<T>::value;
@@ -673,9 +673,9 @@ private:
 	template<typename T>
 	constexpr static auto make_tuple_if_not_void(T&& arg) { return std::make_tuple(std::forward<T>(arg)); }
 
-	constexpr static auto make_tuple_if_not_void(pseudo_void&& void_arg) { return tuple<> {}; }
-	constexpr static auto make_tuple_if_not_void(pseudo_void& void_arg) { return tuple<> {}; }
-	constexpr static auto make_tuple_if_not_void(const pseudo_void& void_arg) { return tuple<> {}; }
+	constexpr static auto make_tuple_if_not_void(pseudo_void&& void_arg) { return std::tuple<> {}; }
+	constexpr static auto make_tuple_if_not_void(pseudo_void& void_arg) { return std::tuple<> {}; }
+	constexpr static auto make_tuple_if_not_void(const pseudo_void& void_arg) { return std::tuple<> {}; }
 
 public:
 	constexpr static auto getTaskDefines(TaskList&&... list) {
@@ -735,7 +735,7 @@ std::vector<uint32_t> copyToVec()
 
 
 template<typename... CallableSignatures>
-auto makeCallableInfoByTuple(tuple<CallableSignatures...>&& tuple)
+auto makeCallableInfoByTuple(std::tuple<CallableSignatures...>&&)
 {
 	return decltype(makeCallableInfo(std::declval<CallableSignatures>() ...)) {};
 }

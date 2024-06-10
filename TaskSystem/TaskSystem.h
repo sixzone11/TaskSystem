@@ -108,7 +108,7 @@ struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTa
 	struct MatchedKeyIndex { constexpr static size_t value = ArgIndex == BindingSlotIndex ? OrderedBindingKeyIndex : -1; };
 
 	template<size_t... Iseq1, size_t... Iseq2>
-	static constexpr std::index_sequence<Iseq1..., Iseq2...> index_sequence_cat(index_sequence<Iseq1...>, index_sequence<Iseq2...>) { return {}; }
+	static constexpr std::index_sequence<Iseq1..., Iseq2...> index_sequence_cat(std::index_sequence<Iseq1...>, std::index_sequence<Iseq2...>) { return {}; }
 
 	template<size_t ArgIndex, size_t BindingSlotIndex>
 	struct CompareAndNext
@@ -157,7 +157,7 @@ struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTa
 			*static_cast<ReturnTypeTuple*>(static_cast<void*>(taskCommitInfo->_returnTupleMemory.data())) ) )
 		, _ret(ret)
 	{
-		static_assert(is_same_v<typename CallableSignatureResolved::Callable, typename CallableSignature::Callable>, "'Callable's given and resolved are must be same");
+		static_assert(std::is_same_v<typename CallableSignatureResolved::Callable, typename CallableSignature::Callable>, "'Callable's given and resolved are must be same");
 	}
 	~CallableTaskKey() override {}
 
@@ -245,7 +245,7 @@ private:
 template<typename CallableInfoType, size_t I, typename CallableSignatureT>
 inline auto make_CallableTaskKey(CallableSignatureT&& collableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, typename std::tuple_element_t<I, typename CallableInfoType::CallableSignatureResolvedTuple>::RetType& returnReference)
 {
-	using SelectTaskIdentifier = conditional_t<CallableSignatureT::is_resolved, DefaultTaskIdentifier, LambdaTaskIdentifier>;
+	using SelectTaskIdentifier = std::conditional_t<CallableSignatureT::is_resolved, DefaultTaskIdentifier, LambdaTaskIdentifier>;
 	return new CallableTaskKey<CallableInfoType, I, typename CallableSignatureT::Callable, SelectTaskIdentifier>(std::forward<CallableSignatureT>(collableSignature), taskCommitInfo, returnReference);
 }
 
@@ -284,7 +284,7 @@ struct TaskCommitInfoWithCallable : TaskCommitInfo
 	~TaskCommitInfoWithCallable() override
 	{
 		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_returnTupleMemory.data()));
-		deleteReturns(returnTuple, std::make_index_sequence<tuple_size_v<ReturnTypeTuple>>{});
+		deleteReturns(returnTuple, std::make_index_sequence<std::tuple_size_v<ReturnTypeTuple>>{});
 	}
 
 	template<size_t... Iseq>
