@@ -125,7 +125,7 @@ std::vector<char> test_loadDataFromFileByTask(const char* filePath)
 	auto openFileTasks = Dependency( std::move(t1), std::move(t2), std::move(t3));
 
 	ITaskManager* taskManager = getDefaultTaskManager();
-	ITaskKey* taskKey = taskManager->createTask(std::move(openFileTasks));
+	ITask* taskKey = taskManager->createTask(std::move(openFileTasks));
 
 	taskManager->commitTask(taskKey);
 
@@ -185,7 +185,7 @@ std::vector<char> test_loadDataFromFileByTask2(const char* filePath)
 	}));
 
 	ITaskManager* taskManager = getDefaultTaskManager();
-	ITaskKey* taskKey = taskManager->createTask(std::move(chainConnectedTaskWithArg));
+	ITask* taskKey = taskManager->createTask(std::move(chainConnectedTaskWithArg));
 
 	taskManager->commitTask(taskKey);
 
@@ -203,7 +203,7 @@ void test_member_function()
 	MemberFunctionTest memberFunctionTest;
 	auto testTask = Task(&MemberFunctionTest::func, &memberFunctionTest, "test code");
 
-	ITaskKey* taskKey = taskManager->createTask(move(testTask));
+	ITask* taskKey = taskManager->createTask(move(testTask));
 	taskManager->commitTask(taskKey);
 }
 
@@ -228,7 +228,7 @@ void test_functions(const char* filePath)
 		})
 	);
 
-	ITaskKey* taskKey = taskManager->createTask(std::move(openFileTaskChainA));
+	ITask* taskKey = taskManager->createTask(std::move(openFileTaskChainA));
 	taskManager->commitTask(taskKey);
 }
 

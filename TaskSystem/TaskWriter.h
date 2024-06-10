@@ -407,7 +407,7 @@ struct TaskDefine
 	//TaskExecutePoint _executePoint = {};
 };
 
-struct ITaskKey;
+struct ITask;
 
 struct TaskCommitInfo
 {
@@ -418,7 +418,7 @@ struct TaskCommitInfo
 	std::vector<uint32_t> _inputs;
 	std::vector<uint32_t> _outputs;
 	std::vector<uint32_t> _precedingCount;
-	std::vector<std::unique_ptr<ITaskKey>> _taskKeys;
+	std::vector<std::unique_ptr<ITask>> _taskKeys;
 	std::vector<uint8_t> _returnTupleMemory;
 
 	TaskCommitInfo(std::vector<TaskDefine>&& taskDefines, std::vector<uint32_t>&& offsets, std::vector<uint32_t>&& links, std::vector<uint32_t>&& inputs, std::vector<uint32_t>&& outputs, size_t sizeOfReturnTypeTuple)

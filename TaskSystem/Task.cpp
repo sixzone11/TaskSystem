@@ -5,26 +5,26 @@
 #include <utility>
 #include <limits.h>
 
-struct TaskKeyImpl : public ITaskKey
+struct TaskImpl : public ITask
 {
 public:
 	std::shared_ptr<TaskCommitInfo>& getCommitInfo() { return _commitInfo; }
 };
 
-std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey)
+std::ostream& operator<<(std::ostream& os, const ITask& taskKey)
 {
-	auto& taskKeyImpl = static_cast<const TaskKeyImpl&>(taskKey);
+	auto& taskKeyImpl = static_cast<const TaskImpl&>(taskKey);
 	return os << "task key output";
 }
 
 class TaskManagerImpl : public ITaskManager
 {
-	bool commitTask(ITaskKey* taskKey) const override;
+	bool commitTask(ITask* taskKey) const override;
 };
 
-bool TaskManagerImpl::commitTask(ITaskKey* taskKey) const
+bool TaskManagerImpl::commitTask(ITask* taskKey) const
 {
-	auto commitInfo = static_cast<TaskKeyImpl*>(taskKey)->getCommitInfo();
+	auto commitInfo = static_cast<TaskImpl*>(taskKey)->getCommitInfo();
 	
 	int i = 0;
 	for (auto& task : commitInfo->_taskKeys)

@@ -16,30 +16,30 @@
 
 #include "TaskWriter.h"
 
-struct ITaskKey
+struct ITask
 {
-	ITaskKey() = default;
-	ITaskKey(std::shared_ptr<TaskCommitInfo>& commitInfo)
+	ITask() = default;
+	ITask(std::shared_ptr<TaskCommitInfo>& commitInfo)
 		: _commitInfo(commitInfo) {}
-	virtual ~ITaskKey() {}
+	virtual ~ITask() {}
 
 	virtual void process() = 0;
 	virtual void process() const = 0;
 
-	friend TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey);
+	friend TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITask& taskKey);
 
 protected:
 	std::shared_ptr<TaskCommitInfo> _commitInfo;
 };
-TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITaskKey& taskKey);
+TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITask& taskKey);
 
 struct ITaskManager
 {
 public:
 	template<typename TaskInfoList>
-	ITaskKey* createTask(TaskInfoList&& taskInfoList);
+	ITask* createTask(TaskInfoList&& taskInfoList);
 	
-	virtual bool commitTask(ITaskKey* taskKey) const = 0;
+	virtual bool commitTask(ITask* taskKey) const = 0;
 
 	virtual ~ITaskManager() {}
 
@@ -50,10 +50,10 @@ private:
 extern "C" TASKSYSTEM_API ITaskManager * getDefaultTaskManager();
 
 template<typename CallableInfoType, size_t I, typename Callable, typename SelectTaskIdentifier>
-struct CallableTaskKey;
+struct CallableTask;
 
 template<typename CallableInfoType, size_t I, typename FunctionPointerAsCallable>
-struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTaskIdentifier> : public ITaskKey
+struct CallableTask<CallableInfoType, I, FunctionPointerAsCallable, DefaultTaskIdentifier> : public ITask
 {
 	// CallableInfoType
 	using CallableSignatureResolved = typename std::tuple_element_t<I, typename CallableInfoType::CallableSignatureResolvedTuple>;
@@ -66,8 +66,8 @@ struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTa
 	using ArgTypeTupleResolved = typename CallableSignatureResolved::ArgTypeTuple;
 
 	template<typename CallableSignature>
-	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
-		: ITaskKey(taskCommitInfo)
+	CallableTask(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
+		: ITask(taskCommitInfo)
 		, _callable(std::forward<Callable>(callableSignature._callable))
 		, _args(mapArgTuple(
 			std::forward<typename CallableSignature::ArgTypeTuple>(callableSignature._args),
@@ -78,7 +78,7 @@ struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTa
 	{
 		static_assert(std::is_same_v<typename CallableSignatureResolved::Callable, typename CallableSignature::Callable>, "'Callable's given and resolved are must be same");
 	}
-	~CallableTaskKey() override {}
+	~CallableTask() override {}
 
 	void process() override
 	{
@@ -211,7 +211,7 @@ private:
 };
 
 template<typename CallableInfoType, std::size_t I, typename Callable>
-struct CallableTaskKey<CallableInfoType, I, Callable, LambdaTaskIdentifier> : public ITaskKey
+struct CallableTask<CallableInfoType, I, Callable, LambdaTaskIdentifier> : public ITask
 {
 	using CallableSignatureResolved = typename std::tuple_element_t<I, typename CallableInfoType::CallableSignatureResolvedTuple>;
 
@@ -222,15 +222,15 @@ struct CallableTaskKey<CallableInfoType, I, Callable, LambdaTaskIdentifier> : pu
 	using RetType = typename CallableSignatureResolved::RetType;
 
 	template<typename CallableSignature>
-	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
-		: ITaskKey(taskCommitInfo)
+	CallableTask(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
+		: ITask(taskCommitInfo)
 		, _callable(std::forward<Callable>(callableSignature._callable))
 		, _ret(ret)
 	{
 		//static_assert(is_same_v<LambdaTaskIdentifier, tuple_element_t<1, ParamTypeTuple>>, "This CallableSignature is not substituted!");
 	}
 
-	~CallableTaskKey() override {}
+	~CallableTask() override {}
 
 	void process() override
 	{
@@ -253,14 +253,14 @@ template<typename CallableInfoType, size_t I, typename CallableSignatureT>
 inline auto make_CallableTaskKey(CallableSignatureT&& collableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, typename std::tuple_element_t<I, typename CallableInfoType::CallableSignatureResolvedTuple>::RetType& returnReference)
 {
 	using SelectTaskIdentifier = std::conditional_t<CallableSignatureT::is_resolved, DefaultTaskIdentifier, LambdaTaskIdentifier>;
-	return new CallableTaskKey<CallableInfoType, I, typename CallableSignatureT::Callable, SelectTaskIdentifier>(std::forward<CallableSignatureT>(collableSignature), taskCommitInfo, returnReference);
+	return new CallableTask<CallableInfoType, I, typename CallableSignatureT::Callable, SelectTaskIdentifier>(std::forward<CallableSignatureT>(collableSignature), taskCommitInfo, returnReference);
 }
 
 template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) == 0, int> E = -2>
-constexpr static void __createCallableTasks(std::unique_ptr<ITaskKey>* outCallableTasks, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskCallableTuple&& tuple, std::integer_sequence<uint32_t, I...>) {}
+constexpr static void __createCallableTasks(std::unique_ptr<ITask>* outCallableTasks, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskCallableTuple&& tuple, std::integer_sequence<uint32_t, I...>) {}
 
 template<typename TaskCallableTuple, uint32_t... I, std::enable_if_t<sizeof...(I) != 0, int> E = -1>
-constexpr static void __createCallableTasks(std::unique_ptr<ITaskKey>* outCallableTasks, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskCallableTuple&& tuple, std::integer_sequence<uint32_t, I...>)
+constexpr static void __createCallableTasks(std::unique_ptr<ITask>* outCallableTasks, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskCallableTuple&& tuple, std::integer_sequence<uint32_t, I...>)
 {
 	using CallableInfoType = decltype(makeCallableInfoByTuple(std::declval<TaskCallableTuple>()));
 
@@ -271,7 +271,7 @@ constexpr static void __createCallableTasks(std::unique_ptr<ITaskKey>* outCallab
 }
 
 template<typename TaskInfoList>
-inline void createCallableTasks(std::vector<std::unique_ptr<ITaskKey>>& outTaskKeys, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskInfoList&& taskInfoList)
+inline void createCallableTasks(std::vector<std::unique_ptr<ITask>>& outTaskKeys, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskInfoList&& taskInfoList)
 {
 	using TaskTuple = std::remove_reference_t<TaskInfoList>;
 	using TaskMeta = typename std::tuple_element_t<IndexTaskMeta, TaskTuple>;
@@ -305,7 +305,7 @@ struct TaskCommitInfoWithCallable : TaskCommitInfo
 };
 
 template<typename TaskInfoList>
-ITaskKey* ITaskManager::createTask(TaskInfoList&& taskInfoList)
+ITask* ITaskManager::createTask(TaskInfoList&& taskInfoList)
 {
 	using TaskTuple = std::remove_reference_t<TaskInfoList>;
 	using TaskMeta = typename std::tuple_element_t<IndexTaskMeta, TaskTuple>;
