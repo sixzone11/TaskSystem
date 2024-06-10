@@ -2,6 +2,28 @@
 
 #include <TaskSystem/TaskSystem.h>
 
+std::vector<char>	test_loadDataFromFile(const char* filePath);
+
+std::vector<char>	test_loadDataFromFileByTask(const char* filePath);
+std::vector<char>	test_loadDataFromFileByTask2(const char* filePath);
+
+void				test_member_function();
+void				test_functions(const char* filePath);
+
+void				test_examples_for_meta();
+
+void entrypoint_test()
+{
+	test_loadDataFromFile("no_task");
+
+	test_loadDataFromFileByTask("lambda_task");
+	test_loadDataFromFileByTask2("lambda_task_with_key");
+
+	test_member_function();
+	test_functions("");
+	test_examples_for_meta();
+}
+
 
 #define Dependency	TaskWriter::chain
 #define Concurrency	TaskWriter::junction
@@ -22,7 +44,26 @@ namespace FileSystem
 	bool isFileIOJobAvailable() { return false; }
 }
 
-std::vector<char> loadDataFromFile(const char* filePath)
+// [x] 1. 중첩 체인, 정션에서 어떻게 CallableInfo 를 구성하고 그 제약을 설정하게 할 것인지.
+// [ ] 2. 실제 데이터가 오가기 위한 메모리 확보 및 공간 연결 구성
+
+//auto openReadAndCopyFromItIfExist = Dependency(
+//	Task(isExist, filePath),
+//	Branch(
+//		ConditionalTask(TaskResult::Succeeded, "OpenFile", filePath),
+//		ConditionalFail(TaskResult::Failed)
+//	),
+//	Branch(
+//		ConditionalTask(TaskResult::Succeeded, "AllocateMemory", getTaskResult ),
+//		ConditionalFail(TaskResult::Failed)
+//	),
+//	Branch(
+//		ConditionalTask(TaskResult::Succeeded, "CopyData", getTaskResult),
+//		ConditionalFail(TaskResult::Failed)
+//	)
+//);
+
+std::vector<char> test_loadDataFromFile(const char* filePath)
 {
 	const bool bExist = isExist(filePath);
 	if (bExist == false)
@@ -43,7 +84,7 @@ std::vector<char> loadDataFromFile(const char* filePath)
 	return memory;
 }
 
-std::vector<char> loadDataFromFileByTask(const char* filePath)
+std::vector<char> test_loadDataFromFileByTask(const char* filePath)
 {
 	auto e0 = Task(ProcessBlock(filePath)
 	{
@@ -105,7 +146,7 @@ namespace KeyB {
 	struct Third : BindingKey {};
 }
 
-std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
+std::vector<char> test_loadDataFromFileByTask2(const char* filePath)
 {
 	auto integral_expression = []() { return 5; };
 
@@ -143,37 +184,56 @@ std::vector<char> openReadAndCopyFromItIfExists(const char* filePath)
 		return memory;
 	}));
 
+	ITaskManager* taskManager = getDefaultTaskManager();
+	ITaskKey* taskKey = taskManager->createTask(std::move(chainConnectedTaskWithArg));
 
-	// [x] 1. 중첩 체인, 정션에서 어떻게 CallableInfo 를 구성하고 그 제약을 설정하게 할 것인지.
-	// [ ] 2. 실제 데이터가 오가기 위한 메모리 확보 및 공간 연결 구성
-
-	//auto openReadAndCopyFromItIfExist = Dependency(
-	//	Task(isExist, filePath),
-	//	Branch(
-	//		ConditionalTask(TaskResult::Succeeded, "OpenFile", filePath),
-	//		ConditionalFail(TaskResult::Failed)
-	//	),
-	//	Branch(
-	//		ConditionalTask(TaskResult::Succeeded, "AllocateMemory", getTaskResult ),
-	//		ConditionalFail(TaskResult::Failed)
-	//	),
-	//	Branch(
-	//		ConditionalTask(TaskResult::Succeeded, "CopyData", getTaskResult),
-	//		ConditionalFail(TaskResult::Failed)
-	//	)
-	//);
+	taskManager->commitTask(taskKey);
 
 	return std::vector<char>();
 }
 
-void FunctionsTest(const char* filePath);
-
-void test_ver2()
+void test_member_function()
 {
-	loadDataFromFileByTask("");
+	ITaskManager* taskManager = getDefaultTaskManager();
 
-	FunctionsTest("");
+	struct MemberFunctionTest
+	{
+		bool func(const char*) { return false; }
+	};
+	MemberFunctionTest memberFunctionTest;
+	auto testTask = Task(&MemberFunctionTest::func, &memberFunctionTest, "test code");
 
+	ITaskKey* taskKey = taskManager->createTask(move(testTask));
+	taskManager->commitTask(taskKey);
+}
+
+void test_functions(const char* filePath)
+{
+	ITaskManager* taskManager = getDefaultTaskManager();
+
+	auto openFileTaskChainA = Dependency(
+		Task(isExist, filePath),
+		Task<KeyA::First>(openFile, filePath),
+		Task<KeyA::Second>(WaitWhile(FileSystem::isFileIOJobAvailable()), getSize, KeyA::First()),
+		Task<KeyA::Third>(allocateMemory, KeyA::Second()),
+		Task<KeyA::Forth>(readFile, KeyA::First(), KeyA::Third(), KeyA::Second()),
+		Task<KeyA::Fifth>( ProcessBlock() {
+			int& readResult = GetResult(KeyA::Forth);
+			std::vector<char>& memory = GetResult(KeyA::Third);
+
+			if (readResult != 0)
+				return std::vector<char>();
+			else
+				return memory;
+		})
+	);
+
+	ITaskKey* taskKey = taskManager->createTask(std::move(openFileTaskChainA));
+	taskManager->commitTask(taskKey);
+}
+
+void test_examples_for_meta()
+{
 	auto debugTask = Task("Task");
 
 	auto debugChain =
@@ -220,22 +280,22 @@ void test_ver2()
 			)
 		);
 
-	 auto testTasks =
-	     Concurrency(
-	         std::move(testChainOfJunctions),
-	         Dependency(
-	             Task("6")
-	             , Concurrency(
-	                 Task("7")
-	                 , Task("8")
-	             )
-	         )
-	         , Dependency(
-	             Task("9")
-	             , Task("10")
-	             , Task("11")
-	         )
-	     );
+	auto testTasks =
+		Concurrency(
+			std::move(testChainOfJunctions),
+			Dependency(
+				Task("6")
+				, Concurrency(
+					Task("7")
+					, Task("8")
+				)
+			)
+			, Dependency(
+				Task("9")
+				, Task("10")
+				, Task("11")
+			)
+		);
 
 	auto testTasks2 =
 		Dependency(
@@ -263,66 +323,66 @@ void test_ver2()
 			)
 		);
 
-	 auto result = Dependency(
-	 	Task("AsyncTask""1"),
-	 	Concurrency(
-	 		Dependency(
-	 			Task("JunctionTask""1_1"),
-	 			Task("JunctionTask""1_2")),
-	 		Task("JunctionTask""2"),
-	 		Concurrency(
-	 			Dependency(
-	 				Task("JunctionTask""1_1"),
-	 				Task("JunctionTask""1_2"),
-	 				Concurrency(
-	 					Dependency(
-	 						Task("JunctionTask""1_1"),
-	 						Task("JunctionTask""1_2")),
-	 					Task("JunctionTask""2")
-	 				)),
-	 			Task("JunctionTask""2")
-	 		)
-	 	),
-	 	Dependency(
-	 		Dependency(
-	 			Dependency(
-	 				Dependency(
-	 					Task("AsyncTask""3"))))),
-	 	Task("AsyncTask""4"),
-	 	Task("AsyncTask""5")
-	 );
+	auto result = Dependency(
+		Task("AsyncTask""1"),
+		Concurrency(
+			Dependency(
+				Task("JunctionTask""1_1"),
+				Task("JunctionTask""1_2")),
+			Task("JunctionTask""2"),
+			Concurrency(
+				Dependency(
+					Task("JunctionTask""1_1"),
+					Task("JunctionTask""1_2"),
+					Concurrency(
+						Dependency(
+							Task("JunctionTask""1_1"),
+							Task("JunctionTask""1_2")),
+						Task("JunctionTask""2")
+					)),
+				Task("JunctionTask""2")
+			)
+		),
+		Dependency(
+			Dependency(
+				Dependency(
+					Dependency(
+						Task("AsyncTask""3"))))),
+		Task("AsyncTask""4"),
+		Task("AsyncTask""5")
+	);
 
 
-	 auto testDependenciesOfTaskss =
-		 Dependency(
-			 Task("0"),
-			 Concurrency(
-				 Task("1")
-				 , Task("2")
-				 , Task("3")
-			 )
-			 , Concurrency(
-				 Task("4")
-				 , Task("5")
-			 )
-		 );
+	auto testDependenciesOfTaskss =
+		Dependency(
+			Task("0"),
+			Concurrency(
+				Task("1")
+				, Task("2")
+				, Task("3")
+			)
+			, Concurrency(
+				Task("4")
+				, Task("5")
+			)
+		);
 
-	 auto testTask2s =
-		 Concurrency(
-			 std::move(testDependenciesOfTaskss),
-			 Dependency(
-				 Task("6")
-				 , Concurrency(
-					 Task("7")
-					 , Task("8")
-				 )
-			 )
-			 , Dependency(
-				 Task("9")
-				 , Task("10")
-				 , Task("11")
-			 )
-		 );
+	auto testTask2s =
+		Concurrency(
+			std::move(testDependenciesOfTaskss),
+			Dependency(
+				Task("6")
+				, Concurrency(
+					Task("7")
+					, Task("8")
+				)
+			)
+			, Dependency(
+				Task("9")
+				, Task("10")
+				, Task("11")
+			)
+		);
 
 	auto& r = result;
 	using T = std::remove_reference_t<decltype(r)>;
@@ -330,47 +390,4 @@ void test_ver2()
 	printf("TaskWrittenSize: %zu\n", sizeof(T));
 
 	print(r);
-
-}
-
-void MemberFunctionTest()
-{
-	ITaskManager* taskManager = getDefaultTaskManager();
-
-	// Member Function Test
-	struct MemberFunctionTest
-	{
-		bool func(const char*) { return false; }
-	};
-	MemberFunctionTest memberFunctionTest;
-	auto testTask = Task(&MemberFunctionTest::func, &memberFunctionTest, "test code");
-
-	//ITaskKey* taskKey = taskManager->createTask(Dependency(move(testTask)));
-	ITaskKey* taskKey = taskManager->createTask(move(testTask));
-	taskManager->commitTask(taskKey);
-}
-
-void FunctionsTest(const char* filePath)
-{
-	ITaskManager* taskManager = getDefaultTaskManager();
-
-	auto openFileTaskChainA = Dependency(
-		Task(isExist, filePath),
-		Task<KeyA::First>(openFile, filePath),
-		Task<KeyA::Second>(WaitWhile(FileSystem::isFileIOJobAvailable()), getSize, KeyA::First()),
-		Task<KeyA::Third>(allocateMemory, KeyA::Second()),
-		Task<KeyA::Forth>(readFile, KeyA::First(), KeyA::Third(), KeyA::Second()),
-		Task<KeyA::Fifth>( ProcessBlock() {
-			int& readResult = GetResult(KeyA::Forth);
-			std::vector<char>& memory = GetResult(KeyA::Third);
-
-			if (readResult != 0)
-				return std::vector<char>();
-			else
-				return memory;
-		})
-	);
-
-	ITaskKey* taskKey = taskManager->createTask(std::move(openFileTaskChainA));
-	taskManager->commitTask(taskKey);
 }

@@ -64,7 +64,63 @@ struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTa
 	using Callable = typename CallableSignatureResolved::Callable;
 	using RetType = typename CallableSignatureResolved::RetType;
 	using ArgTypeTupleResolved = typename CallableSignatureResolved::ArgTypeTuple;
+
+	template<typename CallableSignature>
+	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
+		: ITaskKey(taskCommitInfo)
+		, _callable(std::forward<Callable>(callableSignature._callable))
+		, _args(mapArgTuple(
+			std::forward<typename CallableSignature::ArgTypeTuple>(callableSignature._args),
+			typename CallableSignature::BindingSlotIndexSequence(),
+			getOrderedBindingKeyIndexSequence<CallableSignature>(),
+			*static_cast<ReturnTypeTuple*>(static_cast<void*>(taskCommitInfo->_returnTupleMemory.data())) ) )
+		, _ret(ret)
+	{
+		static_assert(std::is_same_v<typename CallableSignatureResolved::Callable, typename CallableSignature::Callable>, "'Callable's given and resolved are must be same");
+	}
+	~CallableTaskKey() override {}
+
+	void process() override
+	{
+		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTupleResolved>>{}));
+	}
+	void process() const override
+	{
+		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTupleResolved>>{}));
+	}
+
+
+private:
+
+	using is_void_return_type = std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>;
+	using is_member_function_type = std::conditional_t<std::is_member_function_pointer_v<Callable>, std::true_type, std::false_type>;
+
+	template<uint32_t... Iseq>
+	auto delegate_call(std::false_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) { return _callable(std::get<Iseq>(_args)...); }
+
+	template<uint32_t... Iseq>
+	auto delegate_call(std::false_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) const { return _callable(std::get<Iseq>(_args)...); }
+
+	template<uint32_t Izero, uint32_t... Iseq>
+	auto delegate_call(std::false_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
+
+	template<uint32_t Izero, uint32_t... Iseq>
+	auto delegate_call(std::false_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) const { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
 	
+	template<uint32_t... Iseq>
+	auto delegate_call(std::true_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
+
+	template<uint32_t... Iseq>
+	auto delegate_call(std::true_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) const { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
+
+	template<uint32_t Izero, uint32_t... Iseq>
+	auto delegate_call(std::true_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
+
+	template<uint32_t Izero, uint32_t... Iseq>
+	auto delegate_call(std::true_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) const { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
+
+
+private:
 
 	template<size_t ArgIndex, size_t KeyIndex>
 	struct mapper
@@ -145,59 +201,8 @@ struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTa
 
 #if _WIN32
 	template<size_t... BindingSlotIndices, size_t... OrderedBindingKeyIndices>
-	static auto makeMatchedKeyIndexSequence(std::index_sequence<>, std::index_sequence<BindingSlotIndices...>, std::index_sequence<OrderedBindingKeyIndices...>) {	static_assert(false, "Impossible"); }
+	static auto makeMatchedKeyIndexSequence(std::index_sequence<>, std::index_sequence<BindingSlotIndices...>, std::index_sequence<OrderedBindingKeyIndices...>) { static_assert(false, "Impossible"); }
 #endif
-
-	template<typename CallableSignature>
-	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
-		: ITaskKey(taskCommitInfo)
-		, _callable(std::forward<Callable>(callableSignature._callable))
-		, _args(mapArgTuple(
-			std::forward<typename CallableSignature::ArgTypeTuple>(callableSignature._args),
-			typename CallableSignature::BindingSlotIndexSequence(),
-			getOrderedBindingKeyIndexSequence<CallableSignature>(),
-			*static_cast<ReturnTypeTuple*>(static_cast<void*>(taskCommitInfo->_returnTupleMemory.data())) ) )
-		, _ret(ret)
-	{
-		static_assert(std::is_same_v<typename CallableSignatureResolved::Callable, typename CallableSignature::Callable>, "'Callable's given and resolved are must be same");
-	}
-	~CallableTaskKey() override {}
-
-	using is_void_return_type = std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>;
-	using is_member_function_type = std::conditional_t<std::is_member_function_pointer_v<Callable>, std::true_type, std::false_type>;
-
-	void process() override
-	{
-		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTupleResolved>>{}));
-	}
-	void process() const override
-	{
-		new (&_ret) RetType(delegate_call(is_void_return_type{}, is_member_function_type{}, std::make_integer_sequence<uint32_t, std::tuple_size_v<ArgTypeTupleResolved>>{}));
-	}
-
-	template<uint32_t... Iseq>
-	auto delegate_call(std::false_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) { return _callable(std::get<Iseq>(_args)...); }
-
-	template<uint32_t... Iseq>
-	auto delegate_call(std::false_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) const { return _callable(std::get<Iseq>(_args)...); }
-
-	template<uint32_t Izero, uint32_t... Iseq>
-	auto delegate_call(std::false_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
-
-	template<uint32_t Izero, uint32_t... Iseq>
-	auto delegate_call(std::false_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) const { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
-	
-	template<uint32_t... Iseq>
-	auto delegate_call(std::true_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
-
-	template<uint32_t... Iseq>
-	auto delegate_call(std::true_type, std::false_type, std::integer_sequence<uint32_t, Iseq...>) const { _callable(std::get<Iseq>(_args)...); return pseudo_void{}; }
-
-	template<uint32_t Izero, uint32_t... Iseq>
-	auto delegate_call(std::true_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
-
-	template<uint32_t Izero, uint32_t... Iseq>
-	auto delegate_call(std::true_type, std::true_type, std::integer_sequence<uint32_t, Izero, Iseq...>) const { return (std::get<Izero>(_args)->*_callable)(std::get<Iseq>(_args)...); }
 
 private:
 	Callable _callable;
@@ -320,73 +325,4 @@ ITaskKey* ITaskManager::createTask(TaskInfoList&& taskInfoList)
 	createCallableTasks(taskKeys, taskCommitInfo, std::forward<TaskInfoList>(taskInfoList));
 
 	return taskKeys.back().get();
-
-
-#if 0
-	auto& defines = taskCommitInfo->_taskDefines;
-	auto& taskKeys = taskCommitInfo->_taskKeys;
-
-	uint32_t i = 0;
-	for (auto const& define : defines)
-	{
-		taskKeys[i].reset(new TaskKeyImpl(std::move(taskCommitInfo), i));
-		++i;
-	}
-#endif
-	
-	//return createTask(std::move(taskCommitInfo));
 }
-
-#include <cwchar>
-
-enum Format
-{
-	utf8,
-	utf16
-};
-
-#define FStr(F, literal_string) \
-[](auto arg) { \
-	struct __str { \
-		static constexpr inline const char* s(char) { return literal_string; } \
-		static constexpr inline const wchar_t* s(wchar_t) { return L##literal_string; } \
-	}; return __str::s(arg); \
-} (typename FormatMeta<F>::type())
-
-
-#define FUN_ALIAS_SPEC(SPECS, NEW_NAME, ...)                                    \
-  template <typename... Args>                                                   \
-  SPECS auto NEW_NAME(Args &&... args)                                          \
-    noexcept(noexcept(__VA_ARGS__(std::forward<Args>(args)...)))                \
-    -> decltype(__VA_ARGS__(std::forward<Args>(args)...)) {                     \
-    return __VA_ARGS__(std::forward<Args>(args)...);                            \
-  }
-
-#define FUN_ALIAS(NEW_NAME, ...)                                                \
-  FUN_ALIAS_SPEC(static inline, NEW_NAME, __VA_ARGS__)
-
-template<Format F>
-struct FormatMeta;
-
-template<>
-struct FormatMeta<Format::utf8>
-{
-	using type = char;
-
-	FUN_ALIAS(sprintf, ::sprintf_s);
-
-	static decltype(std::cout)& cout;
-};
-
-template<>
-struct FormatMeta<Format::utf16>
-{
-	using type = wchar_t;
-
-	FUN_ALIAS(sprintf, ::swprintf_s);
-
-	static decltype(std::wcout)& cout;
-};
-
-
-template<Format F> TASKSYSTEM_API void convertToStringList(const int& var);

@@ -33,6 +33,9 @@
     <ClInclude Include="TaskWriter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FormatMeta.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -44,7 +47,7 @@
     <ClCompile Include="Task.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TaskSystem.cpp">
+    <ClCompile Include="FormatMeta.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="TaskExtension.cpp">

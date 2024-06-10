@@ -145,6 +145,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="FormatMeta.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="lambda_details.h" />
     <ClInclude Include="pch.h" />
@@ -162,7 +163,7 @@
     </ClCompile>
     <ClCompile Include="TaskExtension.cpp" />
     <ClCompile Include="Task.cpp" />
-    <ClCompile Include="TaskSystem.cpp" />
+    <ClCompile Include="FormatMeta.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
