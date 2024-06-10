@@ -799,7 +799,7 @@ std::vector<uint32_t> copyToVec()
 {
 	constexpr uint32_t Size = std::tuple_size<decltype(T::_var)>::value;
 	std::vector<uint32_t> vec(Size + AdditionalSize);
-	__copyToVec<T>(vec.data(), std::make_integer_sequence<uint32_t, Size - 1>{});
+	__copyToVec<T>(vec.data(), std::make_integer_sequence<uint32_t, Size>{});
 	return vec;
 }
 
