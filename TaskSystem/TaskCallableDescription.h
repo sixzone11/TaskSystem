@@ -388,8 +388,35 @@ template<typename Key = BindingKey_None, typename Callable, typename... Args,
 	};
 }
 
+
+///////////////////////////////////////////////////////////////////////
+// NullCallableSignature
+
 inline static void nothing() {}
 using NullCallableSignature = decltype(makeCallableSignature(nothing));
+
+
+///////////////////////////////////////////////////////////////////////
+// is_callable_signature
+
+template<typename T>
+struct is_callable_signature : std::false_type {};
+
+template<typename Callable, typename Ret, typename... Args>
+struct is_callable_signature<CallableSignature<Callable, Ret, Args...>> : std::true_type {};
+
+template<typename Key, typename Callable, typename Ret, typename... Args>
+struct is_callable_signature<CallableSignatureWithKey<Key, Callable, Ret, Args...>> : is_callable_signature<CallableSignature<Callable, Ret, Args...>> {};
+
+template<typename... Keys>
+struct is_callable_signature<BindingKeyList<Keys...>> : std::true_type {};
+
+template<typename T>
+constexpr bool is_callable_signature_v = is_callable_signature<T>::value;
+
+
+///////////////////////////////////////////////////////////////////////
+// BindingSlotTypeChecker
 
 template<typename OriginalTypeTupleT, typename ReturnTypeTupleT>
 struct BindingSlotTypeChecker;
@@ -601,9 +628,15 @@ struct CallableInfo<IsResolved, ReturnTypeTupleT, KeyTypeTupleT, CallableSignatu
 // makeCallableInfo utility
 
 template<typename... CallableSignatureTs>
-auto makeCallableInfo(CallableSignatureTs&&...)
+auto decl_CallableInfo(CallableSignatureTs&&...)
 {
 	return CallableInfo< isFirstSignatureResolved<CallableSignatureTs...>(), std::tuple<>, std::tuple<>, std::remove_reference_t<CallableSignatureTs>... > {};
+}
+
+template<typename... CallableSignatures>
+auto decl_CallableInfoByTuple(std::tuple<CallableSignatures...>&&)
+{
+	return decltype(decl_CallableInfo(std::declval<CallableSignatures>() ...)) {};
 }
 
 ///////////////////////////////////////////////////////////////////////

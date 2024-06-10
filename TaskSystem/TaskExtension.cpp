@@ -47,7 +47,7 @@ void test_callableSignature()
 
 		auto callableSignature7_binding = makeCallableSignature(test4, KeyA::Forth());
 
-		auto callableInfo = makeCallableInfo(
+		auto callableInfo = decl_CallableInfo(
 			callableSignature1,
 			callableSignature0,
 			callableSignature4_binding,
@@ -88,7 +88,7 @@ void test_VariableAsBindingKey()
 		return param2 * param * 4.0f;
 	});
 
-	auto callableInfo1 = makeCallableInfo(
+	auto callableInfo1 = decl_CallableInfo(
 		t1,
 		t2,
 		t3,
@@ -115,7 +115,7 @@ void testSignature()
 		});
 	auto t7 = makeCallableSignature(test4, BindingKeyVar(t6));
 
-	auto callableInfo2 = makeCallableInfo(
+	auto callableInfo2 = decl_CallableInfo(
 		t0, t1, t2, t3, t4, t5, t6, t7
 	);
 	
@@ -134,7 +134,7 @@ void testIntegralSignature()
 	auto t1 = MakeCallableSignature(1, testFloatRet);
 	auto t2 = MakeCallableSignature(2, test4, BindingKeyID(1));
 
-	auto callableInfo2 = makeCallableInfo(
+	auto callableInfo2 = decl_CallableInfo(
 		MakeCallableSignature(0, testIntRet),			
 		t1, //MakeCallableSignature(1, testFloatRet),
 		t2, //MakeCallableSignature(2, test4, BindingKeyID(1)),
@@ -172,7 +172,7 @@ void testCharPackSignature()
 	auto t1 = MakeCallableSignatureCP(1a2bc31dfe3489, testFloatRet);
 	auto t2 = MakeCallableSignatureCP(eeeeeeee, test4, BindingKeyCP(1a2bc31dfe3489));
 
-	auto callableInfo2 = makeCallableInfo(
+	auto callableInfo2 = decl_CallableInfo(
 		MakeCallableSignatureCP(abc0, testIntRet),
 		t1, //MakeCallableSignatureCP(1a2bc31dfe3489, testFloatRet),
 		t2, //MakeCallableSignatureCP(eeeeeeee, test4, BindingKeyCP(1a2bc31dfe3489)),
@@ -217,7 +217,7 @@ void testStringSignature()
 
 	static_assert(std::is_same_v<decltype(BindingKeyVar(t1)), decltype(BindingKeyStr(process_1))>, "BindingKey(t1) and BindinigKey(process_1) is same");
 
-	auto callableInfo2 = makeCallableInfo(
+	auto callableInfo2 = decl_CallableInfo(
 		MakeCallableSignatureStr(process_0, testIntRet),
 		t1, //MakeCallableSignatureStr(process_1, testFloatRet),
 		t2, //MakeCallableSignatureStr(process_2, test4, BindingKeyStr(process_1)),

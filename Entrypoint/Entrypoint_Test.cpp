@@ -25,11 +25,11 @@ void entrypoint_test()
 }
 
 
-#define Dependency	TaskWriter::chain
-#define Concurrency	TaskWriter::junction
+#define Dependency	TaskWriter::taskDependency
+#define Concurrency	TaskWriter::taskConcurrency
 #define Task		TaskWriter::task
 
-#define SwitchTask	TaskWriter::junction
+#define SwitchTask	TaskWriter::taskConcurrency
 
 #define KeyList(Key, ...) make_tuple(pseudo_void{}, pseudo_void{}, BindingKeys(Key, __VA_ARGS__))
 
@@ -387,7 +387,7 @@ void test_examples_for_meta()
 	auto& r = result;
 	using T = std::remove_reference_t<decltype(r)>;
 
-	printf("TaskWrittenSize: %zu\n", sizeof(T));
+	printf("TaskDefineSize: %zu\n", sizeof(T));
 
-	print(r);
+	printTaskDefine(r);
 }
