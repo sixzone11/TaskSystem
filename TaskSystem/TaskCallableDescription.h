@@ -11,11 +11,17 @@ template<typename T> void type_checker() { T a = -1; }
 ///////////////////////////////////////////////////////////////////////
 // BindingSlot
 
+#ifdef _WIN32
+#define IS_NOT_REQUIRED { static_assert(false, "why is this required?"); }
+#else // _WIN32
+#define IS_NOT_REQUIRED ;
+#endif // _WIN32
+
 struct BindingSlot
 {
 	// Note: 링크 시 아래 casting operator overloading의 기호가 필요하면 argument passing을 대응하는 부분이 잘못됐을 것.
-	template<typename T> operator T && () const { static_assert(false, "why is this required?"); }
-	template<typename T> operator T& () const { static_assert(false, "why is this required?"); }
+	template<typename T> operator T && () const IS_NOT_REQUIRED
+	template<typename T> operator T& () const IS_NOT_REQUIRED
 };
 
 template<typename T>
@@ -43,7 +49,7 @@ struct BindingKeyList {};
 struct deferred_substitution {};
 
 template<typename T>
-constexpr bool is_deferred_substitution_v = is_same_v<T, deferred_substitution>;
+constexpr bool is_deferred_substitution_v = std::is_same_v<T, deferred_substitution>;
 
 ///////////////////////////////////////////////////////////////////////
 // pseudo_void

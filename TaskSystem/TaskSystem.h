@@ -74,7 +74,7 @@ struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTa
 	};
 
 	template<size_t ArgIndex>
-	struct mapper<ArgIndex, -1>
+	struct mapper<ArgIndex, size_t(-1)>
 	{
 		template<typename ArgTypeTuple>
 		static auto forwardOrReference(ArgTypeTuple&& givenArgTuple, ReturnTypeTuple&)
@@ -141,10 +141,12 @@ struct CallableTaskKey<CallableInfoType, I, FunctionPointerAsCallable, DefaultTa
 	static auto makeMatchedKeyIndexSequence(std::index_sequence<>, std::index_sequence<>, std::index_sequence<>) { return std::index_sequence<>{}; }
 
 	template<size_t... ArgIndices>
-	static auto makeMatchedKeyIndexSequence(std::index_sequence<ArgIndices...>, std::index_sequence<>, std::index_sequence<>) { return std::index_sequence<(ArgIndices, -1)...>{}; }
+	static auto makeMatchedKeyIndexSequence(std::index_sequence<ArgIndices...>, std::index_sequence<>, std::index_sequence<>) { return std::index_sequence<(ArgIndices, size_t(-1))...>{}; }
 
+#if _WIN32
 	template<size_t... BindingSlotIndices, size_t... OrderedBindingKeyIndices>
 	static auto makeMatchedKeyIndexSequence(std::index_sequence<>, std::index_sequence<BindingSlotIndices...>, std::index_sequence<OrderedBindingKeyIndices...>) {	static_assert(false, "Impossible"); }
+#endif
 
 	template<typename CallableSignature>
 	CallableTaskKey(CallableSignature&& callableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, RetType& ret)
