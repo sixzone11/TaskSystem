@@ -47,9 +47,19 @@ using TaskNodeParallel = typename MakeMetaNodeParallel<Tuple>::MetaNodeParallel;
 ///////////////////////////////////////////////////////////////////////
 // TaskDesc
 
+enum class TaskCommitFlag
+{
+	ExecuteLater = 0x00,
+	ExecuteImmediately = 0x01,
+	CreateAsSubTask = 0x02,
+
+	Default = ExecuteLater,
+};
+
 struct TaskDesc
 {
 	const char* _taskName;
+	TaskCommitFlag _commitFlags = TaskCommitFlag::Default;
 };
 
 
