@@ -188,17 +188,36 @@ struct CallableTask<CallableInfoType, I, Callable, LambdaTaskIdentifier> : publi
 
 	~CallableTask() override {}
 
-	void process() override
+	void process() override { invoke(is_void_return_type{}); }
+	void process() const override { invoke(is_void_return_type{}); }
+
+private:
+	using is_void_return_type = std::conditional_t<is_pseudo_void_v<RetType>, std::true_type, std::false_type>;
+
+	void invoke(std::false_type)
+	{
+		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTupleMemory.data()));
+		new (&_ret) RetType(_callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple)));
+	}
+	
+	void invoke(std::false_type) const
 	{
 		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTupleMemory.data()));
 		new (&_ret) RetType(_callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple)));
 	}
 
-	void process() const override
+	void invoke(std::true_type)
 	{
 		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTupleMemory.data()));
-		new (&_ret) RetType(_callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple)));
+		_callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple));
 	}
+
+	void invoke(std::true_type) const
+	{
+		auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(_commitInfo->_returnTupleMemory.data()));
+		_callable(LambdaTaskIdentifier{}, KeyTypeTuple{}, std::move(returnTuple));
+	}
+
 
 private:
 	Callable _callable;
