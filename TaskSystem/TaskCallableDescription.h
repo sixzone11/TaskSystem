@@ -682,12 +682,3 @@ struct __Task_SwitchDefault {};
 #define Capture(...)							ProcessBlock(__VA_ARGS__)
 #define TaskProcessBeginCapture(task_name, ...)	auto task_name = Task(__VA_ARGS__
 #define TaskProcessNextCapture(task_name, ...)	); auto task_name = Task(__VA_ARGS__
-
-
-
-template<typename _TaskDefineTuple>
-struct TaskDefineLayout : public _TaskDefineTuple
-{
-	using AsTuple = _TaskDefineTuple;
-	std::tuple_element_t<0, std::tuple_element_t<IndexTaskCallable, _TaskDefineTuple>> operator() ();
-};

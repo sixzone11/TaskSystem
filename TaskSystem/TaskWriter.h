@@ -722,6 +722,14 @@ constexpr auto getTaskCallables(TaskDefineList&&... list) { return SeparateTaskD
 //
 ///////////////////////////////////////////////////////////////////////
 
+
+template<typename _TaskDefineTuple>
+struct TaskDefineLayout : public _TaskDefineTuple
+{
+	using AsTuple = _TaskDefineTuple;
+	std::tuple_element_t<0, std::tuple_element_t<IndexTaskCallable, _TaskDefineTuple>> operator() ();
+};
+
 ///////////////////////////////////////////////////////////////////////
 // Simple TaskDefine
 
