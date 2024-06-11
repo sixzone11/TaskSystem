@@ -29,7 +29,7 @@ bool TaskManagerImpl::commitTask(ITask* taskKey) const
 	int i = 0;
 	for (auto& task : commitInfo->_taskKeys)
 	{
-		commitInfo->_taskUsed[i++] = true;
+		commitInfo->_taskUsed[i++] = 1;
 		task->process();
 
 		task.reset();

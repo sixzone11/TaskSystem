@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#define REPORT_MEMORY_LAYOUTS
+
 #ifdef _WIN32
 #ifdef TASKSYSTEM_EXPORTS
 #define TASKSYSTEM_API __declspec(dllexport)
@@ -36,8 +38,8 @@ TASKSYSTEM_API std::ostream& operator<<(std::ostream& os, const ITask& taskKey);
 struct ITaskManager
 {
 public:
-	template<typename TaskInfoList>
-	ITask* createTask(TaskInfoList&& taskInfoList);
+	template<typename TaskDefineList>
+	ITask* createTask(TaskDefineList&& taskDefineList);
 	
 	virtual bool commitTask(ITask* taskKey) const = 0;
 
@@ -52,19 +54,19 @@ extern "C" TASKSYSTEM_API ITaskManager * getDefaultTaskManager();
 template<typename CallableInfoType>
 struct TaskCommitInfoWithCallable;
 
-template<typename TaskInfoList>
-inline void createCallableTasks(std::vector<std::unique_ptr<ITask>>& outTaskKeys, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskInfoList&& taskInfoList);
+template<typename TaskDefineList>
+inline void createCallableTasks(std::vector<std::unique_ptr<ITask>>& outTaskKeys, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskDefineList&& taskDefineList);
 
-template<typename TaskInfoList>
-ITask* ITaskManager::createTask(TaskInfoList&& taskInfoList)
+template<typename TaskDefineList>
+ITask* ITaskManager::createTask(TaskDefineList&& taskDefineList)
 {
-	using TaskTuple = std::remove_reference_t<TaskInfoList>;
+	using TaskTuple = std::remove_reference_t<TaskDefineList>;
 	using TaskGraph = typename std::tuple_element_t<IndexTaskGraph, TaskTuple>;
-	using CallableInfoType = decltype(decl_CallableInfoByTuple(std::declval<typename std::tuple_element_t<IndexTaskCallable, TaskInfoList>>()));
+	using CallableInfoType = decltype(decl_CallableInfoByTuple(std::declval<typename std::tuple_element_t<IndexTaskCallable, TaskDefineList>>()));
 
 	auto taskCommitInfo = std::shared_ptr<TaskCommitInfo>(
 		new TaskCommitInfoWithCallable<CallableInfoType>(
-			moveDefinesToVec(std::forward<TaskInfoList>(taskInfoList)),
+			moveDescsToVec(std::forward<TaskDefineList>(taskDefineList)),
 			copyToVec<typename MetaGraphDesc<TaskGraph>::Offsets, 1>(),
 			copyToVec<typename MetaGraphDesc<TaskGraph>::Links>(),
 			copyToVec<typename MetaGraphDesc<TaskGraph>::Inputs>(),
@@ -73,7 +75,7 @@ ITask* ITaskManager::createTask(TaskInfoList&& taskInfoList)
 	);
 
 	auto& taskKeys = taskCommitInfo->_taskKeys;
-	createCallableTasks(taskKeys, taskCommitInfo, std::forward<TaskInfoList>(taskInfoList));
+	createCallableTasks(taskKeys, taskCommitInfo, std::forward<TaskDefineList>(taskDefineList));
 
 	return taskKeys.back().get();
 }
@@ -107,7 +109,14 @@ template<typename CallableInfoType, size_t I, typename Callable, typename Select
 struct CallableTask;
 
 template<typename CallableInfoType, size_t I, typename CallableSignatureT>
-inline auto make_CallalbeTask(CallableSignatureT&& collableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, typename std::tuple_element_t<I, typename CallableInfoType::CallableSignatureResolvedTuple>::RetType& returnReference)
+constexpr std::size_t size_CallableTask()
+{
+	using SelectTaskIdentifier = std::conditional_t<CallableSignatureT::is_resolved, DefaultTaskIdentifier, LambdaTaskIdentifier>;
+	return sizeof(CallableTask<CallableInfoType, I, typename CallableSignatureT::Callable, SelectTaskIdentifier>);
+}
+
+template<typename CallableInfoType, size_t I, typename CallableSignatureT>
+inline auto make_CallableTask(CallableSignatureT&& collableSignature, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, typename std::tuple_element_t<I, typename CallableInfoType::CallableSignatureResolvedTuple>::RetType& returnReference)
 {
 	using SelectTaskIdentifier = std::conditional_t<CallableSignatureT::is_resolved, DefaultTaskIdentifier, LambdaTaskIdentifier>;
 	return new CallableTask<CallableInfoType, I, typename CallableSignatureT::Callable, SelectTaskIdentifier>(std::forward<CallableSignatureT>(collableSignature), taskCommitInfo, returnReference);
@@ -124,16 +133,37 @@ inline void __createCallableTasks(std::unique_ptr<ITask>* outCallableTasks, std:
 	using ReturnTypeTuple = typename CallableInfoType::ReturnTypeTuple;
 	auto& returnTuple = *static_cast<ReturnTypeTuple*>(static_cast<void*>(taskCommitInfo->_returnTupleMemory.data()));
 
-	(outCallableTasks[I].reset(make_CallalbeTask<CallableInfoType, I>(std::get<I>(std::forward<TaskCallableTuple>(tuple)), taskCommitInfo, std::get<I>(returnTuple))), ...);
+#if defined(REPORT_MEMORY_LAYOUTS)
+	constexpr size_t sizeOfAllTasks = (size_CallableTask<CallableInfoType, I, std::tuple_element_t<I, TaskCallableTuple>>() + ...);
+
+	static const bool once = [&taskCommitInfo]() {
+		std::cout
+			<< "TaskType: " << std::endl
+			<< "TaskCommitInfo Size: " << sizeof(TaskCommitInfo) << std::endl
+			<< "Task Descriptions Size: " << taskCommitInfo->_taskDescs.capacity() * sizeof(taskCommitInfo->_taskDescs[0]) << std::endl
+			<< "Task Used Size: " << taskCommitInfo->_taskUsed.capacity() * sizeof(taskCommitInfo->_taskUsed[0]) << std::endl
+			<< "Task Node Offsets Size: " << taskCommitInfo->_offsets.capacity() * sizeof(taskCommitInfo->_offsets[0]) << std::endl
+			<< "Task Node Links Size: " << taskCommitInfo->_links.capacity() * sizeof(taskCommitInfo->_links[0]) << std::endl
+			<< "Task Node Outputs Size: " << taskCommitInfo->_outputs.capacity() * sizeof(taskCommitInfo->_outputs[0]) << std::endl
+			<< "Task Node Preceding Count Size: " << taskCommitInfo->_precedingCount.capacity() * sizeof(taskCommitInfo->_precedingCount[0]) << std::endl
+			<< "Task Keys Size: " << taskCommitInfo->_taskKeys.capacity() * sizeof(taskCommitInfo->_taskKeys[0]) << std::endl
+			<< "Task Argument Tuple Size: " << taskCommitInfo->_returnTupleMemory.capacity() * sizeof(taskCommitInfo->_returnTupleMemory[0]) << std::endl
+			<< "Allocated All Task Sizes: " << sizeOfAllTasks << std::endl
+			<< std::endl;
+		return true;
+	} ();
+#endif // REPORT_MEMORY_LAYOUTS
+
+	(outCallableTasks[I].reset(make_CallableTask<CallableInfoType, I>(std::get<I>(std::forward<TaskCallableTuple>(tuple)), taskCommitInfo, std::get<I>(returnTuple))), ...);
 }
 
-template<typename TaskInfoList>
-inline void createCallableTasks(std::vector<std::unique_ptr<ITask>>& outTaskKeys, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskInfoList&& taskInfoList)
+template<typename TaskDefineList>
+inline void createCallableTasks(std::vector<std::unique_ptr<ITask>>& outTaskKeys, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskDefineList&& taskDefineList)
 {
-	using TaskTuple = std::remove_reference_t<TaskInfoList>;
+	using TaskTuple = std::remove_reference_t<TaskDefineList>;
 	using TaskGraph = typename std::tuple_element_t<IndexTaskGraph, TaskTuple>;
 
-	__createCallableTasks(outTaskKeys.data(), taskCommitInfo, std::get<IndexTaskCallable>(std::forward<TaskInfoList>(taskInfoList)), std::make_integer_sequence<uint32_t, TaskGraph::NumNodes>{});
+	__createCallableTasks(outTaskKeys.data(), taskCommitInfo, std::get<IndexTaskCallable>(std::forward<TaskDefineList>(taskDefineList)), std::make_integer_sequence<uint32_t, TaskGraph::NumNodes>{});
 }
 
 template<typename CallableInfoType, std::size_t I, typename Callable>

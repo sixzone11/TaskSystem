@@ -56,8 +56,13 @@ enum class TaskCommitFlag
 	Default = ExecuteLater,
 };
 
+struct Event;
+struct TaskProcessor;
+
 struct TaskDesc
 {
+	TaskProcessor* _taskProcessor;
+	Event* _event;
 	const char* _taskName;
 	TaskCommitFlag _commitFlags = TaskCommitFlag::Default;
 };
@@ -106,11 +111,11 @@ struct TaskWriter
 	template<typename BindingKeyT = BindingKey_None, typename Func, typename... ArgTypes>
 	static auto task(Func&& func, ArgTypes&&... args);
 
-	template<typename... TaskList>
-	static auto taskDependency(TaskList&&... list);
+	template<typename... TaskDefineList>
+	static auto taskDependency(TaskDefineList&&... list);
 
-	template<typename... TaskList>
-	static auto taskConcurrency(TaskList&&... list);
+	template<typename... TaskDefineList>
+	static auto taskConcurrency(TaskDefineList&&... list);
 };
 
 
@@ -125,7 +130,7 @@ struct ITask;
 struct TaskCommitInfo
 {
 	std::vector<TaskDesc> _taskDescs;
-	std::vector<bool> _taskUsed;
+	std::vector<uint32_t> _taskUsed;
 	std::vector<uint32_t> _offsets;
 	std::vector<uint32_t> _links;
 	std::vector<uint32_t> _inputs;
@@ -136,7 +141,7 @@ struct TaskCommitInfo
 
 	TaskCommitInfo(std::vector<TaskDesc>&& taskDescs, std::vector<uint32_t>&& offsets, std::vector<uint32_t>&& links, std::vector<uint32_t>&& inputs, std::vector<uint32_t>&& outputs, size_t sizeOfReturnTypeTuple)
 		: _taskDescs(std::move(taskDescs))
-		, _taskUsed(_taskDescs.size(), false)
+		, _taskUsed(_taskDescs.size(), 0)
 		, _offsets(std::move(offsets))
 		, _links(std::move(links))
 		, _inputs(std::move(inputs))
@@ -374,8 +379,8 @@ template<>
 struct MetaNode<1, 1, 1, 1, false> : MetaNode<1, 1, 1, 1, true> {};
 
 
-template<typename... TaskList> struct CalcNumMetaNodes;
-template<typename... TaskList> struct CalcNumMetaNodes_Next;
+template<typename... MetaNodeList> struct CalcNumMetaNodes;
+template<typename... MetaNodeList> struct CalcNumMetaNodes_Next;
 
 ///////////////////////////////////////////////////////////////////////
 // MetaNodeSerial
@@ -606,16 +611,16 @@ struct CalcNumMetaNodes<MetaNode<M, N, NumInputs, NumOutputs, DefType, Pathes...
 	constexpr static const uint32_t sumOutputsInParallel = NumOutputs;
 };
 
-template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, typename... TaskList>
-struct CalcNumMetaNodes<MetaNode<M, N, NumInputs, NumOutputs, DefType, Pathes...>, TaskList...>
+template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, typename... MetaNodeList>
+struct CalcNumMetaNodes<MetaNode<M, N, NumInputs, NumOutputs, DefType, Pathes...>, MetaNodeList...>
 {
-	constexpr static const uint32_t value = M + CalcNumMetaNodes<TaskList...>::value;
+	constexpr static const uint32_t value = M + CalcNumMetaNodes<MetaNodeList...>::value;
 
 	constexpr static const uint32_t numInputs = NumInputs;
-	constexpr static const uint32_t numOutputs = CalcNumMetaNodes<TaskList...>::numOutputs;
+	constexpr static const uint32_t numOutputs = CalcNumMetaNodes<MetaNodeList...>::numOutputs;
 
-	constexpr static const uint32_t sumInputsInParallel = NumInputs + CalcNumMetaNodes<TaskList...>::sumInputsInParallel;
-	constexpr static const uint32_t sumOutputsInParallel = NumOutputs + CalcNumMetaNodes<TaskList...>::sumOutputsInParallel;
+	constexpr static const uint32_t sumInputsInParallel = NumInputs + CalcNumMetaNodes<MetaNodeList...>::sumInputsInParallel;
+	constexpr static const uint32_t sumOutputsInParallel = NumOutputs + CalcNumMetaNodes<MetaNodeList...>::sumOutputsInParallel;
 };
 
 
@@ -624,9 +629,9 @@ struct CalcNumMetaNodes<MetaNode<M, N, NumInputs, NumOutputs, DefType, Pathes...
 	: CalcNumMetaNodes<MetaNode<M, N, NumInputs, NumOutputs, DefType, Pathes...>>
 {};
 
-template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, typename... OtherArgumentTypes, typename... TaskList>
-struct CalcNumMetaNodes<MetaNode<M, N, NumInputs, NumOutputs, DefType, Pathes...>, std::tuple<OtherArgumentTypes...>, TaskList...>
-	: CalcNumMetaNodes<MetaNode<M, N, NumInputs, NumOutputs, DefType, Pathes...>, TaskList...>
+template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, typename... OtherArgumentTypes, typename... MetaNodeList>
+struct CalcNumMetaNodes<MetaNode<M, N, NumInputs, NumOutputs, DefType, Pathes...>, std::tuple<OtherArgumentTypes...>, MetaNodeList...>
+	: CalcNumMetaNodes<MetaNode<M, N, NumInputs, NumOutputs, DefType, Pathes...>, MetaNodeList...>
 {};
 
 
@@ -641,16 +646,16 @@ struct CalcNumMetaNodes_Next<MetaNode<M, N, NumInputs, NumOutputs, DefType, Path
 
 template<
 	uint32_t MCur, uint32_t NCur, uint32_t NumInputsCur, uint32_t NumOutputsCur, bool DefTypeCur, typename... PathesCur,
-	uint32_t MNext, uint32_t NNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, bool DefTypeNext, typename... PathesNext, typename... TaskList>
+	uint32_t MNext, uint32_t NNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, bool DefTypeNext, typename... PathesNext, typename... MetaNodeList>
 	struct CalcNumMetaNodes_Next<
 	MetaNode<MCur, NCur, NumInputsCur, NumOutputsCur, DefTypeCur, PathesCur...>,
-	MetaNode<MNext, NNext, NumInputsNext, NumOutputsNext, DefTypeNext, PathesNext...>, TaskList...>
+	MetaNode<MNext, NNext, NumInputsNext, NumOutputsNext, DefTypeNext, PathesNext...>, MetaNodeList...>
 {
 	using First = MetaNode<MCur, NCur, NumInputsCur, NumOutputsCur, DefTypeCur, PathesCur...>;
 	using Second = MetaNode<MNext, NNext, NumInputsNext, NumOutputsNext, DefTypeNext, PathesNext...>;
 
-	constexpr static const uint32_t valueInSerial = NCur + (NumOutputsCur * (NumInputsNext - 1)) + CalcNumMetaNodes_Next<Second, TaskList...>::valueInSerial;
-	constexpr static const uint32_t valueInParallel = NCur + CalcNumMetaNodes_Next<Second, TaskList...>::valueInParallel;
+	constexpr static const uint32_t valueInSerial = NCur + (NumOutputsCur * (NumInputsNext - 1)) + CalcNumMetaNodes_Next<Second, MetaNodeList...>::valueInSerial;
+	constexpr static const uint32_t valueInParallel = NCur + CalcNumMetaNodes_Next<Second, MetaNodeList...>::valueInParallel;
 };
 
 template<uint32_t M, uint32_t N, uint32_t NumInputs, uint32_t NumOutputs, bool DefType, typename... Pathes, typename... OtherArgumentTypes>
@@ -660,25 +665,25 @@ struct CalcNumMetaNodes_Next<MetaNode<M, N, NumInputs, NumOutputs, DefType, Path
 
 template<
 	uint32_t MCur, uint32_t NCur, uint32_t NumInputsCur, uint32_t NumOutputsCur, bool DefTypeCur, typename... PathesCur, typename... OtherArgumentTypes,
-	uint32_t MNext, uint32_t NNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, bool DefTypeNext, typename... PathesNext, typename... TaskList>
+	uint32_t MNext, uint32_t NNext, uint32_t NumInputsNext, uint32_t NumOutputsNext, bool DefTypeNext, typename... PathesNext, typename... MetaNodeList>
 	struct CalcNumMetaNodes_Next<
 	MetaNode<MCur, NCur, NumInputsCur, NumOutputsCur, DefTypeCur, PathesCur...>, std::tuple<OtherArgumentTypes...>,
-	MetaNode<MNext, NNext, NumInputsNext, NumOutputsNext, DefTypeNext, PathesNext...>, TaskList...>
+	MetaNode<MNext, NNext, NumInputsNext, NumOutputsNext, DefTypeNext, PathesNext...>, MetaNodeList...>
 	: CalcNumMetaNodes_Next<
 	MetaNode<MCur, NCur, NumInputsCur, NumOutputsCur, DefTypeCur, PathesCur...>,
-	MetaNode<MNext, NNext, NumInputsNext, NumOutputsNext, DefTypeNext, PathesNext...>, TaskList...>
+	MetaNode<MNext, NNext, NumInputsNext, NumOutputsNext, DefTypeNext, PathesNext...>, MetaNodeList...>
 {};
 
 
 ///////////////////////////////////////////////////////////////////////
-// SeparateTaskList
+// SeparateTaskDefineList
 
 constexpr const uint32_t IndexTaskDesc = 0;
 constexpr const uint32_t IndexTaskGraph = 1;
 constexpr const uint32_t IndexTaskCallable = 2;
 
-template<typename... TaskList>
-struct SeparateTaskList
+template<typename... TaskDefineList>
+struct SeparateTaskDefineList
 {
 private:
 	template<typename T>
@@ -689,26 +694,26 @@ private:
 	constexpr static auto make_tuple_if_not_void(const pseudo_void& void_arg) { return std::tuple<> {}; }
 
 public:
-	constexpr static auto getTaskDescs(TaskList&&... list) {
-		return std::tuple_cat( std::get<IndexTaskDesc>(std::forward<TaskList>(list)) ...);
+	constexpr static auto getTaskDescs(TaskDefineList&&... list) {
+		return std::tuple_cat( std::get<IndexTaskDesc>(std::forward<TaskDefineList>(list)) ...);
 	}
 
 	using TaskNodeTuple = typename std::remove_const_t<decltype(
-		std::tuple_cat(make_tuple_if_not_void(typename std::tuple_element_t<IndexTaskGraph, TaskList>{})...)) > ; /* Resolved(1): remove_const¸¦ ±ôºýÇÔ. */
+		std::tuple_cat(make_tuple_if_not_void(typename std::tuple_element_t<IndexTaskGraph, TaskDefineList>{})...)) > ; /* Resolved(1): remove_const¸¦ ±ôºýÇÔ. */
 
-	constexpr static auto getTaskCallableAsTuple(TaskList&&... list) {
-		return std::tuple_cat( std::get<IndexTaskCallable>(std::forward<TaskList>(list)) ... );
+	constexpr static auto getTaskCallableAsTuple(TaskDefineList&&... list) {
+		return std::tuple_cat( std::get<IndexTaskCallable>(std::forward<TaskDefineList>(list)) ... );
 	}
 };
 
-template<typename... TaskList>
-constexpr auto getTaskDescs(TaskList&&... list) { return SeparateTaskList<TaskList...>::getTaskDescs(std::forward<TaskList>(list)...); }
+template<typename... TaskDefineList>
+constexpr auto getTaskDescs(TaskDefineList&&... list) { return SeparateTaskDefineList<TaskDefineList...>::getTaskDescs(std::forward<TaskDefineList>(list)...); }
 
-template<typename... TaskList>
-using TaskNodeTuple = typename SeparateTaskList<TaskList...>::TaskNodeTuple;
+template<typename... TaskDefineList>
+using TaskNodeTuple = typename SeparateTaskDefineList<TaskDefineList...>::TaskNodeTuple;
 
-template<typename... TaskList>
-constexpr auto getTaskCallables(TaskList&&... list) { return SeparateTaskList<TaskList...>::getTaskCallableAsTuple(std::forward<TaskList>(list)...); }
+template<typename... TaskDefineList>
+constexpr auto getTaskCallables(TaskDefineList&&... list) { return SeparateTaskDefineList<TaskDefineList...>::getTaskCallableAsTuple(std::forward<TaskDefineList>(list)...); }
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -722,7 +727,7 @@ constexpr auto getTaskCallables(TaskList&&... list) { return SeparateTaskList<Ta
 
 inline auto TaskWriter::task(const char* taskName)
 {
-	return std::make_tuple(std::make_tuple(TaskDesc{ taskName }), TaskNode{}, std::make_tuple(NullCallableSignature{}));
+	return std::make_tuple(std::make_tuple(TaskDesc{ nullptr, nullptr, taskName }), TaskNode{}, std::make_tuple(NullCallableSignature{}));
 }
 
 
@@ -760,16 +765,16 @@ auto TaskWriter::task(Func&& func, ArgTypes&&... args)
 	return std::make_tuple(std::make_tuple(TaskDesc{}), TaskNode{}, std::make_tuple(makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...)));
 }
 
-template<typename... TaskList>
-auto TaskWriter::taskDependency(TaskList&&... list)
+template<typename... TaskDefineList>
+auto TaskWriter::taskDependency(TaskDefineList&&... list)
 {
-	return std::make_tuple(getTaskDescs(std::forward<TaskList>(list)...), TaskNodeSerial<TaskNodeTuple<TaskList...>>{}, getTaskCallables(std::forward<TaskList>(list)...));
+	return std::make_tuple(getTaskDescs(std::forward<TaskDefineList>(list)...), TaskNodeSerial<TaskNodeTuple<TaskDefineList...>>{}, getTaskCallables(std::forward<TaskDefineList>(list)...));
 }
 
-template<typename... TaskList>
-auto TaskWriter::taskConcurrency(TaskList&&... list)
+template<typename... TaskDefineList>
+auto TaskWriter::taskConcurrency(TaskDefineList&&... list)
 {
-	return std::make_tuple(getTaskDescs(std::forward<TaskList>(list)...), TaskNodeParallel<TaskNodeTuple<TaskList...>>{}, getTaskCallables(std::forward<TaskList>(list)...));
+	return std::make_tuple(getTaskDescs(std::forward<TaskDefineList>(list)...), TaskNodeParallel<TaskNodeTuple<TaskDefineList...>>{}, getTaskCallables(std::forward<TaskDefineList>(list)...));
 }
 
 #define GetResultOfTask(Task)		std::get<find_type_in_tuple<true, std::tuple_element_t<0, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>>::KeyType, decltype(info)>::value>(resultTuple)
@@ -791,7 +796,7 @@ constexpr static void __moveTaskDesc(TaskDesc* outDefines, TaskDescTuple&& tuple
 }
 
 template<typename TaskInfoList>
-inline std::vector<TaskDesc> moveDefinesToVec(TaskInfoList&& taskInfoList)
+inline std::vector<TaskDesc> moveDescsToVec(TaskInfoList&& taskInfoList)
 {
 	using TaskTuple = std::remove_reference_t<TaskInfoList>;
 	using TaskGraph = typename std::tuple_element<IndexTaskGraph, TaskTuple>::type;
