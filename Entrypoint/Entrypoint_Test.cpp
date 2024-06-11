@@ -97,15 +97,15 @@ std::vector<char> test_loadDataFromFileByTask(const char* filePath)
 		return isExist(filePath) ? filePath : nullptr;
 	}
 	TaskProcessNext(t2,
-		Condition_Cancel(GetResultOfTask(t1) == nullptr),
+		Condition_Cancel(GetReturnOfTask(t1) == nullptr),
 		WaitWhile(FileSystem::isFileIOJobAvailable() == false),)
 	{
-		return openFile(GetResultOfTask(t1));
+		return openFile(GetReturnOfTask(t1));
 	}
-	TaskProcessNext(t3)//, Condition_Cancel(GetResultOfTask(t2) == nullptr))
+	TaskProcessNext(t3)//, Condition_Cancel(GetReturnOfTask(t2) == nullptr))
 	{
-		//bool isFileExist = GetResultOfTask(e0);
-		void* fileDescriptor = GetResultOfTask(t2);
+		//bool isFileExist = GetReturnOfTask(e0);
+		void* fileDescriptor = GetReturnOfTask(t2);
 
 		if (fileDescriptor == nullptr)
 			return std::vector<char>();
@@ -158,20 +158,20 @@ std::vector<char> test_loadDataFromFileByTask2(const char* filePath)
 
 	}),
 		Task<KeyB::Second>(
-			Condition_Cancel(GetResult(KeyB::First) == nullptr),
+			Condition_Cancel(GetReturn(KeyB::First) == nullptr),
 			WaitWhile(FileSystem::isFileIOJobAvailable() == false),
 			ProcessBlock()
 	{
 
-		return openFile(GetResult(KeyB::First));
+		return openFile(GetReturn(KeyB::First));
 
 	}),
 		Task<KeyB::Third>(
-			Condition_Cancel(GetResult(KeyB::Second) == nullptr),
+			Condition_Cancel(GetReturn(KeyB::Second) == nullptr),
 			ProcessBlock()
 	{
 
-		void* fileDescriptor = GetResult(KeyB::Second);
+		void* fileDescriptor = GetReturn(KeyB::Second);
 		
 		size_t fileSize = getSize(fileDescriptor);
 
@@ -218,8 +218,8 @@ void test_functions(const char* filePath)
 		Task<KeyA::Third>(allocateMemory, KeyA::Second()),
 		Task<KeyA::Forth>(readFile, KeyA::First(), KeyA::Third(), KeyA::Second()),
 		Task<KeyA::Fifth>( ProcessBlock() {
-			int& readResult = GetResult(KeyA::Forth);
-			std::vector<char>& memory = GetResult(KeyA::Third);
+			int& readResult = GetReturn(KeyA::Forth);
+			std::vector<char>& memory = GetReturn(KeyA::Third);
 
 			if (readResult != 0)
 				return std::vector<char>();

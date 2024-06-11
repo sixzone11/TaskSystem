@@ -346,7 +346,7 @@ private:
 	static auto makeMatchedKeyIndexSequence(std::index_sequence<ArgIndices...>, std::index_sequence<>, std::index_sequence<>) { return std::index_sequence<(ArgIndices, size_t(-1))...>{}; }
 
 	template<size_t... BindingSlotIndices, size_t... OrderedBindingKeyIndices>
-	static auto makeMatchedKeyIndexSequence(std::index_sequence<>, std::index_sequence<BindingSlotIndices...>, std::index_sequence<OrderedBindingKeyIndices...>) IS_NOT_REQUIRED
+	static auto makeMatchedKeyIndexSequence(std::index_sequence<>, std::index_sequence<BindingSlotIndices...>, std::index_sequence<OrderedBindingKeyIndices...>) IS_NOT_REQUIRED;
 
 		template<size_t ArgIndex, size_t BindingSlotIndex, size_t OrderedBindingKeyIndex>
 	struct MatchedKeyIndex { constexpr static size_t value = ArgIndex == BindingSlotIndex ? OrderedBindingKeyIndex : -1; };

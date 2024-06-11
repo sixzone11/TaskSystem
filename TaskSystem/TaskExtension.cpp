@@ -39,9 +39,9 @@ void test_callableSignature()
 
 		auto callableSignature6_binding = makeCallableSignature<KeyA::Forth>([](LambdaTaskIdentifier, auto info, auto&& resultTuple)
 			{
-				AutoBindResult(KeyA::First, param);
-				AutoBindResult(SampleKey, param2);
-				AutoBindResult(KeyA::Second, param3);
+				AutoBindReturn(KeyA::First, param);
+				AutoBindReturn(SampleKey, param2);
+				AutoBindReturn(KeyA::Second, param3);
 				return param * 4.0f;
 			});
 
@@ -70,7 +70,7 @@ void test_callableSignature()
 #define GetResultVar(Var)				std::get<find_type_in_tuple<true, typename std::remove_reference_t<decltype(Var)>::KeyType, decltype(info)>::value>(resultTuple)
 #define BindingKeyVar(Var)				typename std::remove_reference_t<decltype(Var)>::KeyType()
 #define BindResultVar(Key, Var)			Var = GetResultVar(Key)
-#define AutoBindResultVar(Key, Var)		auto BindResultVar(Key, Var)
+#define AutoBindReturnVar(Key, Var)		auto BindResultVar(Key, Var)
 
 void test_VariableAsBindingKey()
 {
@@ -108,9 +108,9 @@ void testSignature()
 	auto t5 = makeCallableSignature(test5, 3, BindingKeyVar(t3));
 	auto t6 = makeCallableSignature([](LambdaTaskIdentifier, auto info, auto&& resultTuple)
 		{
-			AutoBindResultVar(t1, param);
-			AutoBindResultVar(t0, param2);
-			AutoBindResultVar(t3, param3);
+			AutoBindReturnVar(t1, param);
+			AutoBindReturnVar(t0, param2);
+			AutoBindReturnVar(t3, param3);
 			return param * 4.0f;
 		});
 	auto t7 = makeCallableSignature(test4, BindingKeyVar(t6));

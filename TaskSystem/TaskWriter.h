@@ -777,9 +777,6 @@ auto TaskWriter::taskConcurrency(TaskDefineList&&... list)
 	return std::make_tuple(getTaskDescs(std::forward<TaskDefineList>(list)...), TaskNodeParallel<TaskNodeTuple<TaskDefineList...>>{}, getTaskCallables(std::forward<TaskDefineList>(list)...));
 }
 
-#define GetResultOfTask(Task)		std::get<find_type_in_tuple<true, std::tuple_element_t<0, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>>::KeyType, decltype(info)>::value>(resultTuple)
-
-
 ///////////////////////////////////////////////////////////////////////
 //
 // TaskDefine Move/Copy Utilities
@@ -795,14 +792,14 @@ constexpr static void __moveTaskDesc(TaskDesc* outDefines, TaskDescTuple&& tuple
 	((outDefines[I] = std::get<I>(std::forward<TaskDescTuple>(tuple))), ...);
 }
 
-template<typename TaskInfoList>
-inline std::vector<TaskDesc> moveDescsToVec(TaskInfoList&& taskInfoList)
+template<typename TaskDefineList>
+inline std::vector<TaskDesc> moveDescsToVec(TaskDefineList&& taskDefineList)
 {
-	using TaskTuple = std::remove_reference_t<TaskInfoList>;
+	using TaskTuple = std::remove_reference_t<TaskDefineList>;
 	using TaskGraph = typename std::tuple_element<IndexTaskGraph, TaskTuple>::type;
 
 	std::vector<TaskDesc> vec(TaskGraph::NumNodes);
-	__moveTaskDesc(vec.data(), std::get<IndexTaskDesc>(std::forward<TaskInfoList>(taskInfoList)), std::make_integer_sequence<uint32_t, TaskGraph::NumNodes>{});
+	__moveTaskDesc(vec.data(), std::get<IndexTaskDesc>(std::forward<TaskDefineList>(taskDefineList)), std::make_integer_sequence<uint32_t, TaskGraph::NumNodes>{});
 	return vec;
 }
 

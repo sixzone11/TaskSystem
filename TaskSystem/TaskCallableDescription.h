@@ -11,17 +11,17 @@ template<typename T> void type_checker() { T a = -1; }
 ///////////////////////////////////////////////////////////////////////
 // BindingSlot
 
-#ifdef _WIN32
+#if defined(_MSC_VER) && (_MSC_VER < 1930) // https://learn.microsoft.com/ko-kr/cpp/overview/compiler-versions?view=msvc-170#version-macros
 #define IS_NOT_REQUIRED { static_assert(false, "why is this required?"); }
-#else // _WIN32
-#define IS_NOT_REQUIRED ;
-#endif // _WIN32
+#else // _MSC_VER
+#define IS_NOT_REQUIRED
+#endif // _MSC_VER
 
 struct BindingSlot
 {
 	// Note: 링크 시 아래 casting operator overloading의 기호가 필요하면 argument passing을 대응하는 부분이 잘못됐을 것.
-	template<typename T> operator T && () const IS_NOT_REQUIRED
-	template<typename T> operator T& () const IS_NOT_REQUIRED
+	template<typename T> operator T && () const IS_NOT_REQUIRED;
+	template<typename T> operator T& () const IS_NOT_REQUIRED;
 };
 
 template<typename T>
@@ -655,9 +655,12 @@ struct __Task_SwitchDefault {};
 #define Condition_Cancel(...)		__Task_ConditionCancel{}, ConditionExpression(__VA_ARGS__)
 #define WaitWhile(...)				__Task_WaitWhile{}, ConditionExpression(__VA_ARGS__)
 
-#define GetResult(Key)				std::get<find_type_in_tuple<true, std::remove_reference_t<Key>, decltype(info)>::value>(resultTuple)
-#define BindResult(Key, Var)		Var = GetResult(Key)
-#define AutoBindResult(Key, Var)	auto BindResult(Key, Var)
+#define DefineBindingKey(KeyName)	struct KeyName : BindingKey { using KeyType = KeyName; }
+
+#define GetReturnOfTask(Task)		std::get<find_type_in_tuple<true, std::tuple_element_t<0, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>>::KeyType, decltype(info)>::value>(resultTuple)
+#define GetReturn(Key)				std::get<find_type_in_tuple<true, std::remove_reference_t<Key>, decltype(info)>::value>(resultTuple)
+#define BindReturn(Key, Var)		Var = GetReturn(Key)
+#define AutoBindReturn(Key, Var)	auto BindReturn(Key, Var)
 
 #define TaskSwitchDefault			__Task_SwitchDefault{}
 
@@ -679,3 +682,12 @@ struct __Task_SwitchDefault {};
 #define Capture(...)							ProcessBlock(__VA_ARGS__)
 #define TaskProcessBeginCapture(task_name, ...)	auto task_name = Task(__VA_ARGS__
 #define TaskProcessNextCapture(task_name, ...)	); auto task_name = Task(__VA_ARGS__
+
+
+
+template<typename _TaskDefineTuple>
+struct TaskDefineLayout : public _TaskDefineTuple
+{
+	using AsTuple = _TaskDefineTuple;
+	std::tuple_element_t<0, std::tuple_element_t<IndexTaskCallable, _TaskDefineTuple>> operator() ();
+};
