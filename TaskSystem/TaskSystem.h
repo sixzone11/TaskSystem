@@ -39,7 +39,7 @@ struct ITaskManager
 {
 public:
 	template<typename TaskDefineList>
-	ITask* createTask(TaskDefineList&& taskDefineList);
+	static ITask* createTask(TaskDefineList&& taskDefineList);
 	
 	virtual bool commitTask(ITask* taskKey) const = 0;
 

@@ -675,10 +675,33 @@ struct __Task_SwitchDefault {};
 #define CommaConnection_Expand(N) CommaConnection_Select(N)
 #define CommaConnection(...) CommaConnection_Expand(IsEmptyArgs(__VA_ARGS__))
 
-#define TaskProcessBegin(task_name, ...)		auto task_name = Task(__VA_ARGS__ ProcessBlock()
-#define TaskProcessNext(task_name, ...)			); auto task_name = Task(__VA_ARGS__ ProcessBlock()
-#define TaskProcessEnd() )
+#define TaskProcessBegin(task_name, ...)		__task_expand_0(TASK_PROCESS_SWITCH, TaskProcessBegin, task_name, __VA_ARGS__)
+#define TaskProcessNext(task_name, ...)			__task_expand_0(TASK_PROCESS_SWITCH, TaskProcessNext, task_name, __VA_ARGS__)
+#define TaskProcessEnd()						__task_expand_2(TASK_PROCESS_SWITCH, TaskProcessEnd )
 
 #define Capture(...)							ProcessBlock(__VA_ARGS__)
-#define TaskProcessBeginCapture(task_name, ...)	auto task_name = Task(__VA_ARGS__
-#define TaskProcessNextCapture(task_name, ...)	); auto task_name = Task(__VA_ARGS__
+#define TaskProcessBeginCapture(task_name, ...)	__task_expand_0(TASK_PROCESS_SWITCH, TaskProcessBeginCapture, task_name, __VA_ARGS__)
+#define TaskProcessNextCapture(task_name, ...)	__task_expand_0(TASK_PROCESS_SWITCH, TaskProcessNextCapture, task_name, __VA_ARGS__)
+
+#define create_task(...)						__task_expand_1(TASK_PROCESS_SWITCH, create_task, __VA_ARGS__)
+
+#define TASK_PROCESS_SWITCH						__enable__
+
+#define __task_concat(x, y)						x##y
+#define __task_expand_0(x, y, task_name, ...)	__task_concat(x, y)(task_name, __VA_ARGS__)
+#define __task_expand_1(x, y, ...)				__task_concat(x, y)(__VA_ARGS__)
+#define __task_expand_2(x, y)					__task_concat(x, y)()
+
+#define __enable__TaskProcessBegin(task_name, ...)			auto task_name = Task(__VA_ARGS__ ProcessBlock()
+#define __enable__TaskProcessNext(task_name, ...)			); auto task_name = Task(__VA_ARGS__ ProcessBlock()
+#define __enable__TaskProcessEnd() )
+#define __enable__TaskProcessBeginCapture(task_name, ...)	auto task_name = Task(__VA_ARGS__
+#define __enable__TaskProcessNextCapture(task_name, ...)	); auto task_name = Task(__VA_ARGS__
+#define __enable__create_task(...)							ITaskManager::createTask(__VA_ARGS__)
+
+#define __disable__TaskProcessBegin(task_name, ...)
+#define __disable__TaskProcessNext(task_name, ...)
+#define __disable__TaskProcessEnd()
+#define __disable__TaskProcessBeginCapture(task_name, ...)
+#define __disable__TaskProcessNextCapture(task_name, ...)
+#define __disable__create_task(...)							(ITask*(nullptr))
