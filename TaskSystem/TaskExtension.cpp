@@ -17,15 +17,15 @@ void test4(float) {}
 int test5(int, double) { return 9; }
 
 namespace KeyA {
-	struct First : BindingKey {};
-	struct Second : BindingKey {};
-	struct Third : BindingKey {};
-	struct Forth : BindingKey {};
+	DefineBindingKey(First);
+	DefineBindingKey(Second);
+	DefineBindingKey(Third);
+	DefineBindingKey(Forth);
 }
 
 void test_callableSignature()
 {
-	struct SampleKey : BindingKey {};
+	DefineBindingKey(SampleKey);
 
 	{
 		auto callableSignature0 = makeCallableSignature<KeyA::First>(testFloatRet);
@@ -123,7 +123,7 @@ void testSignature()
 
 
 template<size_t>
-struct LiteralBindingKey : BindingKey {};
+DefineBindingKey(LiteralBindingKey);
 
 void testIntegralSignature()
 {
@@ -154,7 +154,7 @@ void testIntegralSignature()
 }
 
 template<const char ... chars>
-struct CharsBindingKey : BindingKey {};
+DefineBindingKey(CharsBindingKey);
 
 template<const char... CharPack>
 constexpr auto operator "" _chars()
@@ -204,7 +204,7 @@ struct basic_fixed_string
 };
 
 template<basic_fixed_string>
-struct StringBindingKey : BindingKey {};
+DefineBindingKey(StringBindingKey);
 
 void testStringSignature()
 {

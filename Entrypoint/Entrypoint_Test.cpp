@@ -97,15 +97,15 @@ std::vector<char> test_loadDataFromFileByTask(const char* filePath)
 		return isExist(filePath) ? filePath : nullptr;
 	}
 	TaskProcessNext(t2,
-		Condition_Cancel(GetReturnOfTask(t1) == nullptr),
+		Condition_Cancel(GetReturn(t1) == nullptr),
 		WaitWhile(FileSystem::isFileIOJobAvailable() == false),)
 	{
-		return openFile(GetReturnOfTask(t1));
+		return openFile(GetReturn(t1));
 	}
-	TaskProcessNext(t3)//, Condition_Cancel(GetReturnOfTask(t2) == nullptr))
+	TaskProcessNext(t3)//, Condition_Cancel(GetReturn(t2) == nullptr))
 	{
-		//bool isFileExist = GetReturnOfTask(e0);
-		void* fileDescriptor = GetReturnOfTask(t2);
+		//bool isFileExist = GetReturn(e0);
+		void* fileDescriptor = GetReturn(t2);
 
 		if (fileDescriptor == nullptr)
 			return std::vector<char>();
@@ -133,17 +133,17 @@ std::vector<char> test_loadDataFromFileByTask(const char* filePath)
 }
 
 namespace KeyA {
-	struct First : BindingKey {};
-	struct Second : BindingKey {};
-	struct Third : BindingKey {};
-	struct Forth : BindingKey {};
-	struct Fifth : BindingKey {};
+	DefineBindingKey(First);
+	DefineBindingKey(Second);
+	DefineBindingKey(Third);
+	DefineBindingKey(Forth);
+	DefineBindingKey(Fifth);
 }
 
 namespace KeyB {
-	struct First : BindingKey {};
-	struct Second : BindingKey {};
-	struct Third : BindingKey {};
+	DefineBindingKey(First);
+	DefineBindingKey(Second);
+	DefineBindingKey(Third);
 }
 
 std::vector<char> test_loadDataFromFileByTask2(const char* filePath)
