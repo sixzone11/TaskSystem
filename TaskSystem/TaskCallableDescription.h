@@ -34,6 +34,8 @@ constexpr bool is_binding_slot_v = is_binding_slot<T>::value;
 ///////////////////////////////////////////////////////////////////////
 // BindingKey
 
+#define DefineBindingKey(KeyName)	struct KeyName : BindingKey { using KeyType = KeyName; }
+
 struct BindingKey : public BindingSlot {};
 struct BindingKey_None : BindingKey {};
 
@@ -655,10 +657,13 @@ struct __Task_SwitchDefault {};
 #define Condition_Cancel(...)		__Task_ConditionCancel{}, ConditionExpression(__VA_ARGS__)
 #define WaitWhile(...)				__Task_WaitWhile{}, ConditionExpression(__VA_ARGS__)
 
-#define DefineBindingKey(KeyName)	struct KeyName : BindingKey { using KeyType = KeyName; }
-
+/*
 #define GetReturnOfTask(Task)		std::get<find_type_in_tuple<true, std::tuple_element_t<0, std::remove_reference_t<decltype(std::get<IndexTaskCallable>(Task))>>::KeyType, decltype(info)>::value>(resultTuple)
-#define GetReturn(Key)				std::get<find_type_in_tuple<true, std::remove_reference_t<Key>, decltype(info)>::value>(resultTuple)
+#define GetReturnByKey(Key)			std::get<find_type_in_tuple<true, std::remove_reference_t<Key>, decltype(info)>::value>(resultTuple)
+*/
+
+// Get a return from preceding task.
+#define GetReturn(TaskOrKey)		__task_expand_1(TASK_PROCESS_SWITCH, GetReturn, TaskOrKey)
 #define BindReturn(Key, Var)		Var = GetReturn(Key)
 #define AutoBindReturn(Key, Var)	auto BindReturn(Key, Var)
 
@@ -703,6 +708,7 @@ struct __Task_SwitchDefault {};
 #define __enable__create_task(...)							ITaskManager::createTask(__VA_ARGS__)
 
 #define __enable__ProcessBlock(...)							[ __VA_ARGS__ ](LambdaTaskIdentifier, auto info, auto&& resultTuple)
+#define __enable__GetReturn(TaskOrKey)						std::get<find_type_in_tuple<true, typename decltype(TaskOrKey())::KeyType, decltype(info)>::value>(resultTuple)
 
 
 #define __disable__TaskSwitch()								0
@@ -714,3 +720,4 @@ struct __Task_SwitchDefault {};
 #define __disable__create_task(...)							((ITask*)(nullptr))
 
 #define __disable__ProcessBlock(...)						[ &, __VA_ARGS__ ]()
+#define __disable__GetReturn(TaskOrKey)						TaskOrKey

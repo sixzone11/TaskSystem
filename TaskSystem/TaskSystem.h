@@ -60,9 +60,9 @@ inline void createCallableTasks(std::vector<std::unique_ptr<ITask>>& outTaskKeys
 template<typename TaskDefineList>
 ITask* ITaskManager::createTask(TaskDefineList&& taskDefineList)
 {
-	using TaskTuple = std::remove_reference_t<TaskDefineList>;
+	using TaskTuple = as_tuple_t<TaskDefineList>;
 	using TaskGraph = typename std::tuple_element_t<IndexTaskGraph, TaskTuple>;
-	using CallableInfoType = decltype(decl_CallableInfoByTuple(std::declval<typename std::tuple_element_t<IndexTaskCallable, TaskDefineList>>()));
+	using CallableInfoType = decltype(decl_CallableInfoByTuple(std::declval<typename std::tuple_element_t<IndexTaskCallable, TaskTuple>>()));
 
 	auto taskCommitInfo = std::shared_ptr<TaskCommitInfo>(
 		new TaskCommitInfoWithCallable<CallableInfoType>(
@@ -160,10 +160,10 @@ inline void __createCallableTasks(std::unique_ptr<ITask>* outCallableTasks, std:
 template<typename TaskDefineList>
 inline void createCallableTasks(std::vector<std::unique_ptr<ITask>>& outTaskKeys, std::shared_ptr<TaskCommitInfo>& taskCommitInfo, TaskDefineList&& taskDefineList)
 {
-	using TaskTuple = std::remove_reference_t<TaskDefineList>;
+	using TaskTuple = as_tuple_t<TaskDefineList>;
 	using TaskGraph = typename std::tuple_element_t<IndexTaskGraph, TaskTuple>;
 
-	__createCallableTasks(outTaskKeys.data(), taskCommitInfo, std::get<IndexTaskCallable>(std::forward<TaskDefineList>(taskDefineList)), std::make_integer_sequence<uint32_t, TaskGraph::NumNodes>{});
+	__createCallableTasks(outTaskKeys.data(), taskCommitInfo, std::get<IndexTaskCallable>(std::forward<TaskTuple>(taskDefineList)), std::make_integer_sequence<uint32_t, TaskGraph::NumNodes>{});
 }
 
 template<typename CallableInfoType, std::size_t I, typename Callable>

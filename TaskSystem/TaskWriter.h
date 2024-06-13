@@ -72,9 +72,9 @@ struct TaskDesc
  // TaskWriter
 
 /**
- * Task Define Layout
+ * #TaskDefineLayout
  *
- * TaskDefine - { TaskDesc, TaskNode, TaskCallable }
+ * TaskDefine - { { TaskDesc }, TaskNode, { TaskCallable } }
  * TaskDependencyDefine - { { TaskDefine, ... }, TaskNodeSerial, { TaskCallable, ...} }
  * TaskConcurrencyDefine - { { TaskDefine, ... }, TaskNodeParallel, { TaskCallable, ...} }
  */
@@ -674,13 +674,28 @@ template<
 	MetaNode<MNext, NNext, NumInputsNext, NumOutputsNext, DefTypeNext, PathesNext...>, MetaNodeList...>
 {};
 
-
-///////////////////////////////////////////////////////////////////////
-// SeparateTaskDefineList
-
 constexpr const uint32_t IndexTaskDesc = 0;
 constexpr const uint32_t IndexTaskGraph = 1;
 constexpr const uint32_t IndexTaskCallable = 2;
+
+
+///////////////////////////////////////////////////////////////////////
+// TaskDefine
+
+template<typename _TaskDefineTuple>
+struct TaskDefine : public _TaskDefineTuple
+{
+	using AsTuple = _TaskDefineTuple;
+
+	// Note(jiman): 단일 TaskDefine을 나타낼 때 TaskDesc와 TaskCallable은 단일 요소 튜플로 구성되어 있음. #TaskDefineLayout 참고.
+	std::tuple_element_t<0, std::tuple_element_t<IndexTaskCallable, _TaskDefineTuple>> operator() ();
+};
+
+template<typename TupleDerived>
+using as_tuple_t = typename std::remove_reference_t<TupleDerived>::AsTuple;
+
+///////////////////////////////////////////////////////////////////////
+// SeparateTaskDefineList
 
 template<typename... TaskDefineList>
 struct SeparateTaskDefineList
@@ -695,14 +710,14 @@ private:
 
 public:
 	constexpr static auto getTaskDescs(TaskDefineList&&... list) {
-		return std::tuple_cat( std::get<IndexTaskDesc>(std::forward<TaskDefineList>(list)) ...);
+		return std::tuple_cat( std::get<IndexTaskDesc>(std::forward<as_tuple_t<TaskDefineList>>(list)) ...);
 	}
 
 	using TaskNodeTuple = typename std::remove_const_t<decltype(
-		std::tuple_cat(make_tuple_if_not_void(typename std::tuple_element_t<IndexTaskGraph, TaskDefineList>{})...)) > ; /* Resolved(1): remove_const를 깜빡함. */
+		std::tuple_cat(make_tuple_if_not_void(typename std::tuple_element_t<IndexTaskGraph, as_tuple_t<TaskDefineList>>{})...)) > ; /* Resolved(1): remove_const를 깜빡함. */
 
 	constexpr static auto getTaskCallableAsTuple(TaskDefineList&&... list) {
-		return std::tuple_cat( std::get<IndexTaskCallable>(std::forward<TaskDefineList>(list)) ... );
+		return std::tuple_cat( std::get<IndexTaskCallable>(std::forward<as_tuple_t<TaskDefineList>>(list)) ... );
 	}
 };
 
@@ -722,20 +737,15 @@ constexpr auto getTaskCallables(TaskDefineList&&... list) { return SeparateTaskD
 //
 ///////////////////////////////////////////////////////////////////////
 
-
-template<typename _TaskDefineTuple>
-struct TaskDefineLayout : public _TaskDefineTuple
-{
-	using AsTuple = _TaskDefineTuple;
-	std::tuple_element_t<0, std::tuple_element_t<IndexTaskCallable, _TaskDefineTuple>> operator() ();
-};
-
 ///////////////////////////////////////////////////////////////////////
 // Simple TaskDefine
 
 inline auto TaskWriter::task(const char* taskName)
 {
-	return std::make_tuple(std::make_tuple(TaskDesc{ nullptr, nullptr, taskName }), TaskNode{}, std::make_tuple(NullCallableSignature{}));
+#define __define_task_define_tuple \
+std::make_tuple(std::make_tuple(TaskDesc{ nullptr, nullptr, taskName }), TaskNode{}, std::make_tuple(NullCallableSignature{}))
+	return TaskDefine<decltype(__define_task_define_tuple)>{ __define_task_define_tuple };
+#undef __define_task_define_tuple
 }
 
 
@@ -770,19 +780,29 @@ auto TaskWriter::task(Func&& func, ArgTypes&&... args)
 	//static_assert(sizeof(decltype(checkArgumentTypes(func, std::forward<ArgTypes>(args)...))), "Arguments are not able to pass to task function");
 	// using CallableSignature = decltype(makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...));
 	// return std::make_tuple(TaskDesc{}, TaskNode{}, CallableSignature{});
-	return std::make_tuple(std::make_tuple(TaskDesc{}), TaskNode{}, std::make_tuple(makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...)));
+	
+#define __define_task_define_tuple \
+std::make_tuple(std::make_tuple(TaskDesc{}), TaskNode{}, std::make_tuple(makeCallableSignature<BindingKeyT>(std::forward<Func>(func), std::forward<ArgTypes>(args)...)))
+	return TaskDefine<decltype(__define_task_define_tuple)> { __define_task_define_tuple };
+#undef __define_task_define_tuple
 }
 
 template<typename... TaskDefineList>
 auto TaskWriter::taskDependency(TaskDefineList&&... list)
 {
-	return std::make_tuple(getTaskDescs(std::forward<TaskDefineList>(list)...), TaskNodeSerial<TaskNodeTuple<TaskDefineList...>>{}, getTaskCallables(std::forward<TaskDefineList>(list)...));
+#define __define_task_define_tuple \
+std::make_tuple(getTaskDescs(std::forward<TaskDefineList>(list)...), TaskNodeSerial<TaskNodeTuple<TaskDefineList...>>{}, getTaskCallables(std::forward<TaskDefineList>(list)...))
+	return TaskDefine<decltype(__define_task_define_tuple)> { __define_task_define_tuple };
+#undef __define_task_define_tuple
 }
 
 template<typename... TaskDefineList>
 auto TaskWriter::taskConcurrency(TaskDefineList&&... list)
 {
-	return std::make_tuple(getTaskDescs(std::forward<TaskDefineList>(list)...), TaskNodeParallel<TaskNodeTuple<TaskDefineList...>>{}, getTaskCallables(std::forward<TaskDefineList>(list)...));
+#define __define_task_define_tuple \
+std::make_tuple(getTaskDescs(std::forward<TaskDefineList>(list)...), TaskNodeParallel<TaskNodeTuple<TaskDefineList...>>{}, getTaskCallables(std::forward<TaskDefineList>(list)...))
+	return TaskDefine<decltype(__define_task_define_tuple)> { __define_task_define_tuple };
+#undef __define_task_define_tuple
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -803,11 +823,11 @@ constexpr static void __moveTaskDesc(TaskDesc* outDefines, TaskDescTuple&& tuple
 template<typename TaskDefineList>
 inline std::vector<TaskDesc> moveDescsToVec(TaskDefineList&& taskDefineList)
 {
-	using TaskTuple = std::remove_reference_t<TaskDefineList>;
+	using TaskTuple = as_tuple_t<TaskDefineList>;
 	using TaskGraph = typename std::tuple_element<IndexTaskGraph, TaskTuple>::type;
 
 	std::vector<TaskDesc> vec(TaskGraph::NumNodes);
-	__moveTaskDesc(vec.data(), std::get<IndexTaskDesc>(std::forward<TaskDefineList>(taskDefineList)), std::make_integer_sequence<uint32_t, TaskGraph::NumNodes>{});
+	__moveTaskDesc(vec.data(), std::get<IndexTaskDesc>(std::forward<TaskTuple>(taskDefineList)), std::make_integer_sequence<uint32_t, TaskGraph::NumNodes>{});
 	return vec;
 }
 
@@ -884,11 +904,11 @@ inline static void printTupleElement(const TaskDesc& t)
 	std::cout << "(" << t._taskName << ")\n";
 }
 
-template<typename TaskDefine>
-void printTaskDefine(const TaskDefine& taskDefine)
+template<typename _TaskDefine>
+void printTaskDefine(const _TaskDefine& taskDefine)
 {
-	using TaskDescTuple = typename std::tuple_element<IndexTaskDesc, TaskDefine>::type;
-	using TaskGraph = typename std::tuple_element<IndexTaskGraph, TaskDefine>::type;
+	using TaskDescTuple = typename std::tuple_element_t<IndexTaskDesc, as_tuple_t<_TaskDefine>>;
+	using TaskGraph = typename std::tuple_element_t<IndexTaskGraph, as_tuple_t<_TaskDefine>>;
 	const auto& taskDescs = std::get<IndexTaskDesc>(taskDefine);
 
 	auto offsets = copyToVec<typename MetaGraphDesc<TaskGraph>::Offsets>();
