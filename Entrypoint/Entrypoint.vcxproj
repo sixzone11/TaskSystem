@@ -141,6 +141,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="SyntaxTestCode.cpp" />
+    <ClCompile Include="ThreadGuard.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskSystem\TaskSystem.vcxproj">
