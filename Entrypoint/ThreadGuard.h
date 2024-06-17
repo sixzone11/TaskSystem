@@ -130,10 +130,14 @@ struct TypeA
 	char c;
 	double d;
 	IntermediateType* e;
-	//std::unique_ptr<IntermediateType> e;
-	int f;
-	//std::unordered_map<std::string, IntermediateType> g;
+	std::unique_ptr<IntermediateType> f;
+	int g;
+	//std::unordered_map<std::string, IntermediateType> h;
 };
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// FindTypeTraverseInStruct
 
 
 template<typename Struct, typename Finding, bool IsStruct>
@@ -154,7 +158,7 @@ constexpr bool FindTypeTraverseInTuple()
 template<typename Struct, typename Finding>
 struct FindTypeTraverseInStruct<Struct, Finding, false>
 {
-	constexpr static bool result = false;
+	constexpr static bool result = std::is_same_v<Struct, Finding>;
 };
 
 template<typename Struct, typename Finding>
@@ -170,6 +174,8 @@ struct FindTypeTraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, Findin
 };
 
 
+////////////////////////////////////////////////////////////////////////////////
+/// FindFieldTraverseInStruct
 
 template<typename Struct, bool IsStruct>
 struct FindFieldTraverseInStruct;
@@ -189,7 +195,7 @@ constexpr bool FindFieldTraverseInTuple()
 template<typename Struct>
 struct FindFieldTraverseInStruct<Struct, false>
 {
-	constexpr static bool result = false;
+	constexpr static bool result = has_finding_field_v<Struct>;
 };
 
 template<typename Struct>
@@ -217,19 +223,122 @@ struct FindFieldTraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, true>
 	constexpr static bool result = (... || (has_finding_field_v<std::decay_t<AnyTemplateArguments>> || FindFieldTraverseInStruct<std::decay_t<AnyTemplateArguments>, std::is_class_v<std::decay_t<AnyTemplateArguments>>>::result));
 };
 
+////////////////////////////////////////////////////////////////////////////////
+/// TraverseInStruct
+
+template<typename Struct, bool IsStruct = std::is_class_v<Struct>>
+struct TraverseInStruct;
+
+
+template<typename Tuple, typename = void>
+struct TraverseInTuple;
+
+template<typename Tuple, size_t... Iseq>
+struct TraverseInTuple<Tuple, std::index_sequence<Iseq...>>
+{
+	using has_finding_field_tuple = decltype(
+		std::tuple_cat(std::declval<
+			std::conditional_t<
+				has_finding_field_v<std::tuple_element_t<Iseq, Tuple>>,
+				std::tuple<std::tuple_element_t<Iseq, Tuple>>,
+				typename TraverseInStruct<std::tuple_element_t<Iseq, Tuple>, std::is_class_v<std::tuple_element_t<Iseq, Tuple>>>::has_finding_field_tuple
+			>
+		>() ...));
+};
+
+template<typename Tuple, typename>
+struct TraverseInTuple : TraverseInTuple<Tuple, std::make_index_sequence<std::tuple_size_v<Tuple>>> {};
+
+template<typename Struct>
+struct TraverseInStruct<Struct, false>
+{
+	using has_finding_field_tuple = std::conditional_t<has_finding_field_v<Struct>, std::tuple<Struct>, std::tuple<>>;
+};
+
+template<typename Struct>
+struct TraverseInStruct<Struct*, false>
+{
+	using has_finding_field_tuple = std::conditional_t<has_finding_field_v<Struct>, std::tuple<Struct>, typename TraverseInStruct<Struct, std::is_class_v<Struct>>::has_finding_field_tuple>;
+};
+
+template<typename Struct>
+struct TraverseInStruct<Struct&, false>
+{
+	using has_finding_field_tuple = std::conditional_t<has_finding_field_v<Struct>, std::tuple<Struct>, typename TraverseInStruct<Struct, std::is_class_v<Struct>>::has_finding_field_tuple>;
+};
+
+template<typename Struct>
+struct TraverseInStruct<Struct, true>
+{
+	using has_finding_field_tuple = typename TraverseInTuple<decltype(to_tuple(std::declval<Struct>()))>::has_finding_field_tuple;
+};
+
+template<template<typename... Ts> typename AnyTemplateType, typename... AnyTemplateArguments>
+struct TraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, true>
+{
+	using has_finding_field_tuple = decltype(
+		std::tuple_cat(
+			std::declval<std::conditional_t<
+				has_finding_field_v<std::decay_t<AnyTemplateArguments>>,
+				std::tuple<std::decay_t<AnyTemplateArguments>>,
+				typename TraverseInStruct<std::decay_t<AnyTemplateArguments>, std::is_class_v<std::decay_t<AnyTemplateArguments>>>::has_finding_field_tuple>
+			>() ...) );
+};
+
 
 template<typename TypeToGuard>
 struct ThreadGuard;
 
-template<typename TypeToGuard>
+template<typename TypeToGuard, typename = void>
 struct ReadOnlyAccessor
 {
 	ReadOnlyAccessor(ThreadGuard<TypeToGuard>& guard) : _guard(guard) {}
-	operator const TypeToGuard& () { return _guard; }
-	const TypeToGuard& get() { return _guard; }
+	operator const TypeToGuard& () const { return _guard; }
+	const TypeToGuard& get() const { return _guard; }
 
+private:
 	ThreadGuard<TypeToGuard>& _guard;
 };
+
+template<typename TypeToGuard>
+struct ReadOnlyAccessor<std::unique_ptr<TypeToGuard>, void/*, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>*/>
+{
+	ReadOnlyAccessor(ThreadGuard<std::unique_ptr<TypeToGuard>>& guard) : _guard(guard) {}
+	operator const std::unique_ptr<TypeToGuard>& () const { return _guard; }
+	const TypeToGuard* get() const { return _guard.get(); }
+
+	const TypeToGuard* operator -> () const { return _guard.get(); }
+
+private:
+	ThreadGuard<std::unique_ptr<TypeToGuard>>& _guard;
+};
+
+template<typename TypeToGuard>
+struct ReadOnlyAccessor<std::shared_ptr<TypeToGuard>, void/*, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>*/>
+{
+	ReadOnlyAccessor(ThreadGuard<std::shared_ptr<TypeToGuard>>& guard) : _guard(guard) {}
+	operator const std::shared_ptr<TypeToGuard>& () const { return _guard; }
+	const TypeToGuard* get() const { return _guard.get(); }
+
+	const TypeToGuard* operator -> () const { return _guard.get(); }
+
+private:
+	ThreadGuard<std::shared_ptr<TypeToGuard>>& _guard;
+};
+
+
+//template<typename TypeToGuard, template<typename... Types> typename PtrType>
+//struct ReadOnlyAccessor<PtrType<TypeToGuard>, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>>
+//{
+//ReadOnlyAccessor(ThreadGuard<PtrType<TypeToGuard>>& guard) : _guard(guard) {}
+//operator const PtrType<TypeToGuard>& () { return _guard; }
+//const TypeToGuard* get() { return _guard.get(); }
+//
+//const TypeToGuard* operator -> () { return _guard.get(); }
+//
+//private:
+//	ThreadGuard<PtrType<TypeToGuard>>& _guard;
+//};
 
 template<typename TypeToGuard>
 struct ReadWriteAccessor
@@ -238,7 +347,34 @@ struct ReadWriteAccessor
 	operator TypeToGuard& () { return _guard; }
 	TypeToGuard& get() { return _guard; }
 
+private:
 	ThreadGuard<TypeToGuard>& _guard;
+};
+
+template<typename TypeToGuard>
+struct ReadWriteAccessor<std::unique_ptr<TypeToGuard>>
+{
+	ReadWriteAccessor(ThreadGuard<std::unique_ptr<TypeToGuard>>& guard) : _guard(guard) {}
+	operator const std::unique_ptr<TypeToGuard>& () const { return _guard; }
+	const TypeToGuard* get() const { return _guard.get(); }
+
+	const TypeToGuard* operator -> () const { return _guard.get(); }
+
+private:
+	ThreadGuard<std::unique_ptr<TypeToGuard>>& _guard;
+};
+
+template<typename TypeToGuard>
+struct ReadWriteAccessor<std::shared_ptr<TypeToGuard>>
+{
+	ReadWriteAccessor(ThreadGuard<std::shared_ptr<TypeToGuard>>& guard) : _guard(guard) {}
+	operator const std::shared_ptr<TypeToGuard>& () const { return _guard; }
+	const TypeToGuard* get() const { return _guard.get(); }
+
+	const TypeToGuard* operator -> () const { return _guard.get(); }
+
+private:
+	ThreadGuard<std::shared_ptr<TypeToGuard>>& _guard;
 };
 
 template<typename TypeToGuard>
@@ -263,6 +399,9 @@ struct ThreadGuard : protected TypeToGuard
 	friend ReadOnlyAccessor<TypeToGuard>;
 	friend ReadWriteAccessor<TypeToGuard>;
 
+	using TypeToGuard::TypeToGuard;
+
+private:
 	ThreadGuardInternal<TypeToGuard> _internal;
 };
 
