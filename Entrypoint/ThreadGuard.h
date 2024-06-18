@@ -5,6 +5,7 @@
 #include <memory>
 #include <unordered_map>
 #include <string>
+#include "TaskSystem/TaskCallableDescription.h"
 
 #if 1
 
@@ -226,17 +227,59 @@ struct FindFieldTraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, true>
 ////////////////////////////////////////////////////////////////////////////////
 /// TraverseInStruct
 
+template<typename T1, typename T2>
+struct tuple_cat2;
+template<typename... T1Types, typename... T2Types>
+struct tuple_cat2<std::tuple<T1Types...>, std::tuple<T2Types...>>
+{
+	using type = std::tuple<T1Types..., T2Types...>;
+};
+template<typename T1, typename T2>
+using tuple_cat2_t = tuple_cat2<T1, T2>;
+
+template<typename TupleToShrink, typename = std::make_index_sequence<std::tuple_size_v<TupleToShrink>>>
+struct ShrinkTuple;
+
+template<>
+struct ShrinkTuple<std::tuple<>, std::index_sequence<>>
+{
+	using type = std::tuple<>;
+};
+
+template<typename TupleToShrink, size_t... Iseq>
+struct ShrinkTuple<TupleToShrink, std::index_sequence<Iseq...>>
+{
+private:
+	template<size_t I>
+	struct KeepTuple
+	{
+		using Prev = typename KeepTuple<I - 1>::NoDuplicated;
+		using Current = std::conditional_t<find_type_in_tuple<false, std::tuple_element_t<I, TupleToShrink>, Prev>::value == ~0ull,
+			std::tuple<std::tuple_element_t<I, TupleToShrink>>, std::tuple<>>;
+		using NoDuplicated = typename tuple_cat2<Prev, Current>::type;
+	};
+
+	template<>
+	struct KeepTuple<0>
+	{
+		using NoDuplicated = std::tuple<std::tuple_element_t<0, TupleToShrink>>;
+	};
+
+public:
+	using type = typename KeepTuple<sizeof...(Iseq) - 1>::NoDuplicated;
+};
+
 template<typename Struct, bool IsStruct = std::is_class_v<Struct>>
 struct TraverseInStruct;
 
 
-template<typename Tuple, typename = void>
+template<typename Tuple, typename = std::make_index_sequence<std::tuple_size_v<Tuple>>>
 struct TraverseInTuple;
 
 template<typename Tuple, size_t... Iseq>
 struct TraverseInTuple<Tuple, std::index_sequence<Iseq...>>
 {
-	using has_finding_field_tuple = decltype(
+	using found_tuple = decltype(
 		std::tuple_cat(std::declval<
 			std::conditional_t<
 				has_finding_field_v<std::tuple_element_t<Iseq, Tuple>>,
@@ -244,10 +287,9 @@ struct TraverseInTuple<Tuple, std::index_sequence<Iseq...>>
 				typename TraverseInStruct<std::tuple_element_t<Iseq, Tuple>, std::is_class_v<std::tuple_element_t<Iseq, Tuple>>>::has_finding_field_tuple
 			>
 		>() ...));
-};
 
-template<typename Tuple, typename>
-struct TraverseInTuple : TraverseInTuple<Tuple, std::make_index_sequence<std::tuple_size_v<Tuple>>> {};
+	using has_finding_field_tuple = typename ShrinkTuple<found_tuple, std::make_index_sequence<std::tuple_size_v<found_tuple>>>::type;
+};
 
 template<typename Struct>
 struct TraverseInStruct<Struct, false>
@@ -276,13 +318,15 @@ struct TraverseInStruct<Struct, true>
 template<template<typename... Ts> typename AnyTemplateType, typename... AnyTemplateArguments>
 struct TraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, true>
 {
-	using has_finding_field_tuple = decltype(
+	using found_tuple = decltype(
 		std::tuple_cat(
 			std::declval<std::conditional_t<
 				has_finding_field_v<std::decay_t<AnyTemplateArguments>>,
 				std::tuple<std::decay_t<AnyTemplateArguments>>,
 				typename TraverseInStruct<std::decay_t<AnyTemplateArguments>, std::is_class_v<std::decay_t<AnyTemplateArguments>>>::has_finding_field_tuple>
 			>() ...) );
+
+	using has_finding_field_tuple = typename ShrinkTuple<found_tuple, std::make_index_sequence<std::tuple_size_v<found_tuple>>>::type;
 };
 
 
