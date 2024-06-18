@@ -1,8 +1,7 @@
 ﻿#pragma once
 
-#include <tuple>
 #include "lambda_details.h"
-
+#include "tuple_utility.h"
 
 ///////////////////////////////////////////////////////////////////////
 // Type Checker
@@ -61,65 +60,6 @@ struct pseudo_void {};
 template<typename T>
 constexpr bool is_pseudo_void_v = std::is_same_v<T, pseudo_void>;
 
-
-///////////////////////////////////////////////////////////////////////
-//
-// Tuple Utilities
-//
-///////////////////////////////////////////////////////////////////////
-
-template <typename Tuple, size_t... Seqs>
-constexpr auto mapTuple(Tuple&& t, std::index_sequence<Seqs...>) {
-	static_assert(((std::tuple_size_v<Tuple> > Seqs) && ...), "Map tuple into Seq is failed since seq in Seqs is not less than size of tuple...");
-	return std::make_tuple(std::get<Seqs>(t)...);
-}
-
-template<size_t Value>
-struct value_type { constexpr static size_t value = Value; };
-
-template<size_t Value>
-constexpr size_t value_type_v = value_type<Value>::value;
-
-using value_type_invalid = value_type<~0ull>;
-
-template<bool AllowBaseType, typename Type1, typename Type2>
-struct check_type : std::is_same<Type1, Type2> {};
-
-template<typename Type1, typename Type2>
-struct check_type<true, Type1, Type2> : std::is_base_of<Type1, Type2> {};
-
-template<bool AllowBaseType, typename Type1, typename Type2>
-constexpr bool check_type_v = check_type<AllowBaseType, Type1, Type2>::value;
-
-template<bool AllowBaseType, typename FindingType, size_t Index, typename... Types>
-struct find_type_in_types;
-
-template<bool AllowBaseType, typename FindingType, size_t Index, typename Type, typename... Types>
-struct find_type_in_types<AllowBaseType, FindingType, Index, Type, Types...> : std::conditional_t<check_type_v<AllowBaseType, Type, FindingType>, value_type<Index>, find_type_in_types<AllowBaseType, FindingType, Index + 1, Types...>> {};
-
-template<bool AllowBaseType, typename FindingType, size_t Index, typename Type>
-struct find_type_in_types<AllowBaseType, FindingType, Index, Type> : std::conditional_t<check_type_v<AllowBaseType, Type, FindingType>, value_type<Index>, value_type_invalid> {};
-
-template<bool AllowBaseType, typename FindingType, size_t Index>
-struct find_type_in_types<AllowBaseType, FindingType, Index> : value_type_invalid {};
-
-template<bool AllowBaseType, typename FindingType, typename TypeListTuple>
-struct find_type_in_tuple;
-
-template<bool AllowBaseType, typename FindingType, template<typename... TypeList> typename ListingType, typename... Types>
-struct find_type_in_tuple<AllowBaseType, FindingType, ListingType<Types...>>
-{
-	constexpr static size_t value = find_type_in_types<AllowBaseType, FindingType, 0, Types...>::value;
-};
-
-template<bool AllowBaseType, typename TypeListTuple, typename FindingTypeTuple>
-struct FindType;
-
-template<bool AllowBaseType, typename TypeListTuple, template<typename... TypeList> typename ListingType, typename... FindingTypes>
-struct FindType<AllowBaseType, TypeListTuple, ListingType<FindingTypes...>>
-{
-	using FoundIndexSeq = std::index_sequence< find_type_in_tuple<AllowBaseType, FindingTypes, TypeListTuple>::value ... >;
-};
 
 ///////////////////////////////////////////////////////////////////////
 //

@@ -152,6 +152,7 @@
     <ClInclude Include="TaskCallableDescription.h" />
     <ClInclude Include="TaskSystem.h" />
     <ClInclude Include="TaskWriter.h" />
+    <ClInclude Include="tuple_utility.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />

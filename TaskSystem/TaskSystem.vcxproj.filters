@@ -36,6 +36,9 @@
     <ClInclude Include="FormatMeta.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="tuple_utility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">

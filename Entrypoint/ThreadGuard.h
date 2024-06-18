@@ -1,11 +1,17 @@
 #pragma once
 
-#include <tuple>
 #include <type_traits>
 #include <memory>
 #include <unordered_map>
 #include <string>
-#include "TaskSystem/TaskCallableDescription.h"
+
+#include "TaskSystem/tuple_utility.h"
+
+///////////////////////////////////////////////////////////////////////
+//
+// struct to tuple
+//
+///////////////////////////////////////////////////////////////////////
 
 #if 1
 
@@ -104,23 +110,40 @@ struct any_type {
 GENERATE_MULTIPARAMS(TO_TUPLE_MACRO)
 #endif
 
+///////////////////////////////////////////////////////////////////////
+//
+// ThreadGuard
+//
+///////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// has_finding_field
 
 template<typename T, typename = void>
 struct has_finding_field : std::false_type { };
 
 template<typename T>
-struct has_finding_field<T, std::void_t<decltype(T::___this_is_a_finding_field)>>
-	: std::true_type { };
+struct has_finding_field<T, std::void_t<decltype(T::___this_is_a_finding_field)>> : std::true_type { };
 
 template<typename T>
 constexpr bool has_finding_field_v = has_finding_field<T>::value;
 
+
+////////////////////////////////////////////////////////////////////////////////
+// is_complete
 
 template <typename T, typename = void>
 struct is_complete : std::false_type {};
 
 template <typename T>
 struct is_complete<T, std::void_t<decltype(sizeof(T) != 0)>> : std::true_type {};
+
+template<typename T>
+constexpr bool is_complete_v = is_complete<T>::value;
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Test
 
 struct IntermediateType;
 
@@ -137,9 +160,14 @@ struct TypeA
 };
 
 
-////////////////////////////////////////////////////////////////////////////////
-/// FindTypeTraverseInStruct
+///////////////////////////////////////////////////////////////////////
+//
+// Traverse Struct
+//
+///////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+// FindTypeTraverseInStruct
 
 template<typename Struct, typename Finding, bool IsStruct>
 struct FindTypeTraverseInStruct;
@@ -176,7 +204,7 @@ struct FindTypeTraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, Findin
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/// FindFieldTraverseInStruct
+// FindFieldTraverseInStruct
 
 template<typename Struct, bool IsStruct>
 struct FindFieldTraverseInStruct;
@@ -225,49 +253,7 @@ struct FindFieldTraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, true>
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-/// TraverseInStruct
-
-template<typename T1, typename T2>
-struct tuple_cat2;
-template<typename... T1Types, typename... T2Types>
-struct tuple_cat2<std::tuple<T1Types...>, std::tuple<T2Types...>>
-{
-	using type = std::tuple<T1Types..., T2Types...>;
-};
-template<typename T1, typename T2>
-using tuple_cat2_t = tuple_cat2<T1, T2>;
-
-template<typename TupleToShrink, typename = std::make_index_sequence<std::tuple_size_v<TupleToShrink>>>
-struct ShrinkTuple;
-
-template<>
-struct ShrinkTuple<std::tuple<>, std::index_sequence<>>
-{
-	using type = std::tuple<>;
-};
-
-template<typename TupleToShrink, size_t... Iseq>
-struct ShrinkTuple<TupleToShrink, std::index_sequence<Iseq...>>
-{
-private:
-	template<size_t I>
-	struct KeepTuple
-	{
-		using Prev = typename KeepTuple<I - 1>::NoDuplicated;
-		using Current = std::conditional_t<find_type_in_tuple<false, std::tuple_element_t<I, TupleToShrink>, Prev>::value == ~0ull,
-			std::tuple<std::tuple_element_t<I, TupleToShrink>>, std::tuple<>>;
-		using NoDuplicated = typename tuple_cat2<Prev, Current>::type;
-	};
-
-	template<>
-	struct KeepTuple<0>
-	{
-		using NoDuplicated = std::tuple<std::tuple_element_t<0, TupleToShrink>>;
-	};
-
-public:
-	using type = typename KeepTuple<sizeof...(Iseq) - 1>::NoDuplicated;
-};
+// TraverseInStruct
 
 template<typename Struct, bool IsStruct = std::is_class_v<Struct>>
 struct TraverseInStruct;
@@ -288,7 +274,7 @@ struct TraverseInTuple<Tuple, std::index_sequence<Iseq...>>
 			>
 		>() ...));
 
-	using has_finding_field_tuple = typename ShrinkTuple<found_tuple, std::make_index_sequence<std::tuple_size_v<found_tuple>>>::type;
+	using has_finding_field_tuple = tuple_distinct_t<found_tuple>;
 };
 
 template<typename Struct>
@@ -326,9 +312,14 @@ struct TraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, true>
 				typename TraverseInStruct<std::decay_t<AnyTemplateArguments>, std::is_class_v<std::decay_t<AnyTemplateArguments>>>::has_finding_field_tuple>
 			>() ...) );
 
-	using has_finding_field_tuple = typename ShrinkTuple<found_tuple, std::make_index_sequence<std::tuple_size_v<found_tuple>>>::type;
+	using has_finding_field_tuple = tuple_distinct_t<found_tuple>;
 };
 
+///////////////////////////////////////////////////////////////////////
+//
+// ThreadGuard
+//
+///////////////////////////////////////////////////////////////////////
 
 template<typename TypeToGuard>
 struct ThreadGuard;
@@ -387,7 +378,15 @@ private:
 template<typename TypeToGuard>
 struct ReadWriteAccessor
 {
-	ReadWriteAccessor(ThreadGuard<TypeToGuard>& guard) : _guard(guard) {}
+	ReadWriteAccessor(ThreadGuard<TypeToGuard>& guard) : _guard(guard)
+	{
+		TraverseInStruct<TypeToGuard>::has_finding_field_tuple;
+	}
+	~ReadWriteAccessor()
+	{
+
+	}
+
 	operator TypeToGuard& () { return _guard; }
 	TypeToGuard& get() { return _guard; }
 
