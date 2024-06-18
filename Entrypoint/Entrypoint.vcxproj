@@ -135,6 +135,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DelegateCall.cpp" />
     <ClCompile Include="Entrypoint.cpp" />
     <ClCompile Include="Entrypoint_Test.cpp" />
     <ClCompile Include="pch.cpp">

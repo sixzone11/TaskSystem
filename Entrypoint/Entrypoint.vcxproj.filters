@@ -27,6 +27,9 @@
     <ClCompile Include="SyntaxTestCode.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DelegateCall.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
