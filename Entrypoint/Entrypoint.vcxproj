@@ -142,6 +142,7 @@
     </ClCompile>
     <ClCompile Include="SyntaxTestCode.cpp" />
     <ClCompile Include="ThreadGuard.cpp" />
+    <ClCompile Include="ThreadGuard_otherTU.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskSystem\TaskSystem.vcxproj">

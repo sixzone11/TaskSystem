@@ -4,6 +4,7 @@
 #include <memory>
 #include <unordered_map>
 #include <string>
+#include <assert.h>
 
 #include "TaskSystem/tuple_utility.h"
 
@@ -321,24 +322,60 @@ struct TraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, true>
 //
 ///////////////////////////////////////////////////////////////////////
 
-template<typename TypeToGuard>
+template<typename TypeToGuard, typename = void>
 struct ThreadGuard;
 
-template<typename TypeToGuard, typename = void>
-struct ReadOnlyAccessor
+template<typename TypeToGuard>
+struct OwnerOf
 {
-	ReadOnlyAccessor(ThreadGuard<TypeToGuard>& guard) : _guard(guard) {}
+	// inline static since c++17
+	// Ref: https://en.cppreference.com/w/cpp/language/static#Static_data_members
+	static inline uint32_t ___this_is_a_finding_field = 0;
+};
+
+template<typename TypeToGuard, typename = void>
+struct ReadAccessor
+{
+	ReadAccessor(ThreadGuard<TypeToGuard>& guard) : _guard(guard)
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			_guard.__counter[i]++;
+		}
+	}
+	~ReadAccessor()
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			_guard.__counter[i]--;
+		}
+	}
 	operator const TypeToGuard& () const { return _guard; }
 	const TypeToGuard& get() const { return _guard; }
+
+	const TypeToGuard* operator -> () const { return &_guard; }
 
 private:
 	ThreadGuard<TypeToGuard>& _guard;
 };
 
 template<typename TypeToGuard>
-struct ReadOnlyAccessor<std::unique_ptr<TypeToGuard>, void/*, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>*/>
+struct ReadAccessor<std::unique_ptr<TypeToGuard>, void/*, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>*/>
 {
-	ReadOnlyAccessor(ThreadGuard<std::unique_ptr<TypeToGuard>>& guard) : _guard(guard) {}
+	ReadAccessor(ThreadGuard<std::unique_ptr<TypeToGuard>>& guard) : _guard(guard)
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			_guard->__counter[i]++;
+		}
+	}
+	~ReadAccessor()
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			_guard->__counter[i]--;
+		}
+	}
 	operator const std::unique_ptr<TypeToGuard>& () const { return _guard; }
 	const TypeToGuard* get() const { return _guard.get(); }
 
@@ -349,9 +386,22 @@ private:
 };
 
 template<typename TypeToGuard>
-struct ReadOnlyAccessor<std::shared_ptr<TypeToGuard>, void/*, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>*/>
+struct ReadAccessor<std::shared_ptr<TypeToGuard>, void/*, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>*/>
 {
-	ReadOnlyAccessor(ThreadGuard<std::shared_ptr<TypeToGuard>>& guard) : _guard(guard) {}
+	ReadAccessor(ThreadGuard<std::shared_ptr<TypeToGuard>>& guard) : _guard(guard)
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			_guard->__counter[i]++;
+		}
+	}
+	~ReadAccessor()
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			_guard->__counter[i]--;
+		}
+	}
 	operator const std::shared_ptr<TypeToGuard>& () const { return _guard; }
 	const TypeToGuard* get() const { return _guard.get(); }
 
@@ -363,9 +413,9 @@ private:
 
 
 //template<typename TypeToGuard, template<typename... Types> typename PtrType>
-//struct ReadOnlyAccessor<PtrType<TypeToGuard>, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>>
+//struct ReadAccessor<PtrType<TypeToGuard>, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>>
 //{
-//ReadOnlyAccessor(ThreadGuard<PtrType<TypeToGuard>>& guard) : _guard(guard) {}
+//ReadAccessor(ThreadGuard<PtrType<TypeToGuard>>& guard) : _guard(guard) {}
 //operator const PtrType<TypeToGuard>& () { return _guard; }
 //const TypeToGuard* get() { return _guard.get(); }
 //
@@ -376,28 +426,59 @@ private:
 //};
 
 template<typename TypeToGuard>
-struct ReadWriteAccessor
+struct WriteAccessor
 {
-	ReadWriteAccessor(ThreadGuard<TypeToGuard>& guard) : _guard(guard)
+	WriteAccessor(ThreadGuard<TypeToGuard>& guard) : _guard(guard)
 	{
-		TraverseInStruct<TypeToGuard>::has_finding_field_tuple;
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			assert(_guard.__counter[i] == 0);
+			_guard.__counter[i] = ~0;
+		}
 	}
-	~ReadWriteAccessor()
+	~WriteAccessor()
 	{
-
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			assert(_guard.__counter[i] == ~0);
+			_guard.__counter[i] = 0;
+		}
 	}
 
-	operator TypeToGuard& () { return _guard; }
-	TypeToGuard& get() { return _guard; }
+	inline operator TypeToGuard& () { return _guard; }
+	inline operator const TypeToGuard& () const { return _guard; }
+
+	inline TypeToGuard& get() { return _guard; }
+	inline const TypeToGuard& get() const { return _guard; }
+
+	TypeToGuard* operator -> () { return &_guard; }
+	const TypeToGuard* operator -> () const { return &_guard; }
 
 private:
 	ThreadGuard<TypeToGuard>& _guard;
 };
 
 template<typename TypeToGuard>
-struct ReadWriteAccessor<std::unique_ptr<TypeToGuard>>
+struct WriteAccessor<std::unique_ptr<TypeToGuard>>
 {
-	ReadWriteAccessor(ThreadGuard<std::unique_ptr<TypeToGuard>>& guard) : _guard(guard) {}
+	WriteAccessor(ThreadGuard<std::unique_ptr<TypeToGuard>>& guard) : _guard(guard)
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			assert(_guard->__counter[i] == 0);
+			_guard->__counter[i] = ~0;
+		}
+	}
+
+	~WriteAccessor()
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			assert(_guard->__counter[i] == ~0);
+			_guard->__counter[i] = 0;
+		}
+	}
+
 	operator const std::unique_ptr<TypeToGuard>& () const { return _guard; }
 	const TypeToGuard* get() const { return _guard.get(); }
 
@@ -408,9 +489,24 @@ private:
 };
 
 template<typename TypeToGuard>
-struct ReadWriteAccessor<std::shared_ptr<TypeToGuard>>
+struct WriteAccessor<std::shared_ptr<TypeToGuard>>
 {
-	ReadWriteAccessor(ThreadGuard<std::shared_ptr<TypeToGuard>>& guard) : _guard(guard) {}
+	WriteAccessor(ThreadGuard<std::shared_ptr<TypeToGuard>>& guard) : _guard(guard)
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			assert(_guard->__counter[i] == 0);
+			_guard->__counter[i] = ~0;
+		}
+	}
+	~WriteAccessor()
+	{
+		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
+		{
+			assert(_guard->__counter[i] == ~0);
+			_guard->__counter[i] = 0;
+		}
+	}
 	operator const std::shared_ptr<TypeToGuard>& () const { return _guard; }
 	const TypeToGuard* get() const { return _guard.get(); }
 
@@ -421,14 +517,6 @@ private:
 };
 
 template<typename TypeToGuard>
-struct OwnerOf
-{
-	// inline static since c++17
-	// Ref: https://en.cppreference.com/w/cpp/language/static#Static_data_members
-	static inline uint32_t ___this_is_a_finding_field = 0;
-};
-
-template<typename TypeToGuard>
 struct ThreadGuardInternal
 {
 	// inline static since c++17
@@ -436,46 +524,55 @@ struct ThreadGuardInternal
 	static inline uint32_t ___this_is_a_finding_field = 0;
 };
 
-template<typename TypeToGuard>
+template<typename TypeToGuard, typename>
 struct ThreadGuard : protected TypeToGuard
 {
-	friend ReadOnlyAccessor<TypeToGuard>;
-	friend ReadWriteAccessor<TypeToGuard>;
+	friend ReadAccessor<TypeToGuard>;
+	friend WriteAccessor<TypeToGuard>;
 
 	using TypeToGuard::TypeToGuard;
-
-private:
-	ThreadGuardInternal<TypeToGuard> _internal;
 };
 
 template<typename TypeToGuard>
-struct ReadOnlyAccessorForGroup
+struct ThreadGuard<TypeToGuard, std::enable_if_t<std::is_arithmetic_v<TypeToGuard>>>
+{
+	friend ReadAccessor<TypeToGuard>;
+	friend WriteAccessor<TypeToGuard>;
+
+	//ThreadGuard() = default;
+	//ThreadGuard(TypeToGuard&& rhs) : _value(std::forward<TypeToGuard>(rhs)) {}
+
+	operator TypeToGuard& ()				{ return _value; };
+	operator const TypeToGuard& () const	{ return _value; };
+
+protected:
+	TypeToGuard _value;
+};
+
+template<typename TypeToGuard>
+struct ReadAccessorForGroup
 {
 	// inline static since c++17
 	// Ref: https://en.cppreference.com/w/cpp/language/static#Static_data_members
 	static inline ThreadGuardInternal<TypeToGuard> _internal;
 
-	ReadOnlyAccessorForGroup()
+	ReadAccessorForGroup()
 	{
 	}
 
-	~ReadOnlyAccessorForGroup()
+	~ReadAccessorForGroup()
 	{
 	}
 };
 
 template<typename TypeToGuard>
-struct ReadWriteAccessorForGroup
+struct WriteAccessorForGroup
 {
-	// inline static since c++17
-	// Ref: https://en.cppreference.com/w/cpp/language/static#Static_data_members
-	static inline ThreadGuardInternal<TypeToGuard> _internal;
-
-	ReadWriteAccessorForGroup()
+	WriteAccessorForGroup()
 	{
 	}
 
-	~ReadWriteAccessorForGroup()
+	~WriteAccessorForGroup()
 	{
 	}
 };
@@ -498,6 +595,13 @@ struct DeferredGuard
 
 };
 
-struct TestTypeToCheck;
+struct Certificate {};
 
-#define SET_AS_OWNER_OF(type) static OwnerOf<type> _ownerOf##type
+struct ThreadSafetyCertification
+{
+	ThreadSafetyCertification(Certificate) {}
+};
+
+#define SET_AS_OWNER_OF_TYPES(...)		using HasOwnership = std::tuple<__VA_ARGS__>; uint32_t __counter[std::tuple_size_v<HasOwnership>] {};
+#define REGISTER_THREAD_SATEFY(type)	OwnerOf<type> __owner;
+#define REGISTER_OWNER(type)			template OwnerOf<type>
