@@ -74,9 +74,8 @@ void threadguard_test()
 	//static_assert(FindTypeTraverseInStruct < TypeA, FindingType, true>::result, "Has no FindingType");
 	static_assert(FindFieldTraverseInStruct<TypeA, true>::result, "Has no FindingType");
 
-	typename TraverseInStruct<TypeA>::has_finding_field_tuple aba;
-
-	static_assert(std::tuple_size_v<decltype(aba)> == 3, "IntermediateType has 1");
+	TraverseInStruct<TypeA>::has_finding_field_tuple aba;
+	static_assert(std::tuple_size_v<decltype(aba)> == 1, "IntermediateType has 1");
 	static_assert(std::is_same_v<std::tuple_element_t<0, decltype(aba)>, FindingType<int>>, "That is FindingType<int>");
 
 	LevelManager levelManager;
