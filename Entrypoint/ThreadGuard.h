@@ -6,6 +6,11 @@
 #include <string>
 #include <assert.h>
 
+
+#include <atomic>
+extern std::atomic<uint32_t> g_threadIdAllocator;
+extern thread_local uint32_t g_threadId;
+
 #include "TaskSystem/tuple_utility.h"
 
 ///////////////////////////////////////////////////////////////////////
@@ -328,27 +333,44 @@ struct ThreadGuard;
 template<typename TypeToGuard>
 struct OwnerOf
 {
-	// inline static since c++17
-	// Ref: https://en.cppreference.com/w/cpp/language/static#Static_data_members
-	static inline uint32_t ___this_is_a_finding_field = 0;
+	uint32_t _counter = 0;
+	uint32_t _threadId = ~0;
 };
+
+template<typename... Types>
+void incrementOwnerCounter(std::tuple<OwnerOf<Types>...>& ownerTuple)
+{
+	([&]() {
+		OwnerOf<Types>& ownerOfType = std::get<OwnerOf<Types>>(ownerTuple);
+		ownerOfType._counter++;
+		}(), ...);
+}
+
+template<typename... Types>
+void decrementOwnerCounter(std::tuple<OwnerOf<Types>...>& ownerTuple)
+{
+	([&]() {
+		OwnerOf<Types>& ownerOfType = std::get<OwnerOf<Types>>(ownerTuple);
+		ownerOfType._counter--;
+		}(), ...);
+}
 
 template<typename TypeToGuard, typename = void>
 struct ReadAccessor
 {
 	ReadAccessor(ThreadGuard<TypeToGuard>& guard) : _guard(guard)
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			_guard.__counter[i]++;
-		}
+		if (_guard.__owner && _guard.__owner->_threadId != ~0)
+			assert(_guard.__owner->_threadId == g_threadId);
+
+		incrementOwnerCounter(_guard.__ownerOf);
 	}
 	~ReadAccessor()
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			_guard.__counter[i]--;
-		}
+		if (_guard.__owner && _guard.__owner->_threadId != ~0)
+			assert(_guard.__owner->_threadId == g_threadId);
+
+		decrementOwnerCounter(_guard.__ownerOf);
 	}
 	operator const TypeToGuard& () const { return _guard; }
 	const TypeToGuard& get() const { return _guard; }
@@ -364,17 +386,17 @@ struct ReadAccessor<std::unique_ptr<TypeToGuard>, void/*, std::void_t<decltype(&
 {
 	ReadAccessor(ThreadGuard<std::unique_ptr<TypeToGuard>>& guard) : _guard(guard)
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			_guard->__counter[i]++;
-		}
+		if (_guard->__owner && _guard->__owner->_threadId != ~0)
+			assert(_guard->__owner->_threadId == g_threadId);
+
+		incrementOwnerCounter(_guard->__ownerOf);
 	}
 	~ReadAccessor()
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			_guard->__counter[i]--;
-		}
+		if (_guard->__owner && _guard->__owner->_threadId != ~0)
+			assert(_guard->__owner->_threadId == g_threadId);
+
+		decrementOwnerCounter(_guard->__ownerOf);
 	}
 	operator const std::unique_ptr<TypeToGuard>& () const { return _guard; }
 	const TypeToGuard* get() const { return _guard.get(); }
@@ -390,17 +412,17 @@ struct ReadAccessor<std::shared_ptr<TypeToGuard>, void/*, std::void_t<decltype(&
 {
 	ReadAccessor(ThreadGuard<std::shared_ptr<TypeToGuard>>& guard) : _guard(guard)
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			_guard->__counter[i]++;
-		}
+		if (_guard->__owner && _guard->__owner->_threadId != ~0)
+			assert(_guard->__owner->_threadId == g_threadId);
+
+		incrementOwnerCounter(_guard->__ownerOf);
 	}
 	~ReadAccessor()
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			_guard->__counter[i]--;
-		}
+		if (_guard->__owner && _guard->__owner->_threadId != ~0)
+			assert(_guard->__owner->_threadId == g_threadId);
+
+		decrementOwnerCounter(_guard->__ownerOf);
 	}
 	operator const std::shared_ptr<TypeToGuard>& () const { return _guard; }
 	const TypeToGuard* get() const { return _guard.get(); }
@@ -411,38 +433,38 @@ private:
 	ThreadGuard<std::shared_ptr<TypeToGuard>>& _guard;
 };
 
+template<typename... Types>
+void acquireOwnerCounter(std::tuple<OwnerOf<Types>...>& ownerTuple)
+{
+	([&]() {
+		OwnerOf<Types>& ownerOfType = std::get<OwnerOf<Types>>(ownerTuple);
+		assert(ownerOfType._counter == 0);
+		ownerOfType._counter = ~0;
+		ownerOfType._threadId = g_threadId;
+		}(), ...);
+}
 
-//template<typename TypeToGuard, template<typename... Types> typename PtrType>
-//struct ReadAccessor<PtrType<TypeToGuard>, std::void_t<decltype(&PtrType<TypeToGuard>::operator->)>>
-//{
-//ReadAccessor(ThreadGuard<PtrType<TypeToGuard>>& guard) : _guard(guard) {}
-//operator const PtrType<TypeToGuard>& () { return _guard; }
-//const TypeToGuard* get() { return _guard.get(); }
-//
-//const TypeToGuard* operator -> () { return _guard.get(); }
-//
-//private:
-//	ThreadGuard<PtrType<TypeToGuard>>& _guard;
-//};
+template<typename... Types>
+void releaseOwnerCounter(std::tuple<OwnerOf<Types>...>& ownerTuple)
+{
+	([&]() {
+		OwnerOf<Types>& ownerOfType = std::get<OwnerOf<Types>>(ownerTuple);
+		assert(ownerOfType._counter == ~0);
+		ownerOfType._counter = 0;
+		ownerOfType._threadId = ~0;
+		}(), ...);
+}
 
 template<typename TypeToGuard>
 struct WriteAccessor
 {
 	WriteAccessor(ThreadGuard<TypeToGuard>& guard) : _guard(guard)
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			assert(_guard.__counter[i] == 0);
-			_guard.__counter[i] = ~0;
-		}
+		acquireOwnerCounter(_guard.__ownerOf);
 	}
 	~WriteAccessor()
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			assert(_guard.__counter[i] == ~0);
-			_guard.__counter[i] = 0;
-		}
+		releaseOwnerCounter(_guard.__ownerOf);
 	}
 
 	inline operator TypeToGuard& () { return _guard; }
@@ -463,20 +485,12 @@ struct WriteAccessor<std::unique_ptr<TypeToGuard>>
 {
 	WriteAccessor(ThreadGuard<std::unique_ptr<TypeToGuard>>& guard) : _guard(guard)
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			assert(_guard->__counter[i] == 0);
-			_guard->__counter[i] = ~0;
-		}
+		acquireOwnerCounter(_guard->__ownerOf);
 	}
 
 	~WriteAccessor()
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			assert(_guard->__counter[i] == ~0);
-			_guard->__counter[i] = 0;
-		}
+		releaseOwnerCounter(_guard->__ownerOf);
 	}
 
 	operator const std::unique_ptr<TypeToGuard>& () const { return _guard; }
@@ -493,19 +507,11 @@ struct WriteAccessor<std::shared_ptr<TypeToGuard>>
 {
 	WriteAccessor(ThreadGuard<std::shared_ptr<TypeToGuard>>& guard) : _guard(guard)
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			assert(_guard->__counter[i] == 0);
-			_guard->__counter[i] = ~0;
-		}
+		acquireOwnerCounter(_guard->__ownerOf);
 	}
 	~WriteAccessor()
 	{
-		for (uint32_t i = 0; i < std::tuple_size_v<typename TypeToGuard::HasOwnership>; ++i)
-		{
-			assert(_guard->__counter[i] == ~0);
-			_guard->__counter[i] = 0;
-		}
+		releaseOwnerCounter(_guard->__ownerOf);
 	}
 	operator const std::shared_ptr<TypeToGuard>& () const { return _guard; }
 	const TypeToGuard* get() const { return _guard.get(); }
@@ -602,6 +608,22 @@ struct ThreadSafetyCertification
 	ThreadSafetyCertification(Certificate) {}
 };
 
-#define SET_AS_OWNER_OF_TYPES(...)		using HasOwnership = std::tuple<__VA_ARGS__>; uint32_t __counter[std::tuple_size_v<HasOwnership>] {};
-#define REGISTER_THREAD_SATEFY(type)	OwnerOf<type> __owner;
+template<typename... Types>
+struct make_tuple_owner_of_types
+{
+	using type = std::tuple<OwnerOf<Types>...>;
+};
+
+#define SET_AS_OWNER_OF_TYPES(...) \
+	using HasOwnership = std::tuple<__VA_ARGS__>; \
+	make_tuple_owner_of_types<__VA_ARGS__>::type __ownerOf; \
+	\
+	template<typename Tenant, typename = std::enable_if_t<find_type_in_tuple<false, Tenant, HasOwnership>::value == ~0ull>> \
+	void registerTenant(Tenant&& tenant) { \
+		tenant.__owner = &std::get<OwnerOf<std::remove_cvref_t<Tenant>>>(__ownerOf); \
+	}
+
+#define REGISTER_THREAD_SATEFY(type)	OwnerOf<type>* __owner = nullptr;
 #define REGISTER_OWNER(type)			template OwnerOf<type>
+
+#define THREAD_GUARDED(name)			name; ThreadGuard
