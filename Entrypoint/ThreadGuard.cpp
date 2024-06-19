@@ -191,7 +191,62 @@ void LevelManager::main_generateLevels()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+// has_finding_field
 
+template<typename T, typename = void>
+struct has_finding_field : std::false_type { };
+
+template<typename T>
+struct has_finding_field<T, std::void_t<decltype(T::___this_is_a_finding_field)>> : std::true_type { };
+
+template<typename T>
+constexpr bool has_finding_field_v = has_finding_field<T>::value;
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Test
+
+struct IntermediateType;
+
+struct TypeA
+{
+	int a;
+	float b;
+	char c;
+	double d;
+	IntermediateType* e;
+	std::unique_ptr<IntermediateType> f;
+	int g;
+	//std::unordered_map<std::string, IntermediateType> h;
+};
+
+
+
+template<typename T>
+struct FindingType
+{
+	static uint32_t ___this_is_a_finding_field;
+};
+
+struct IntermediateType
+{
+	int a;
+	FindingType<int> f;
+};
+
+template<typename TypeToGuard, bool ForwardDeclared>
+struct DeferredGuard
+{
+
+};
+
+struct Certificate {};
+
+struct ThreadSafetyCertification
+{
+	ThreadSafetyCertification(Certificate) {}
+};
 
 
 

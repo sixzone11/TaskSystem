@@ -7,6 +7,25 @@
 #include <assert.h>
 
 
+///////////////////////////////////////////////////////////////////////
+//
+// Utility
+//
+///////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// is_complete (or forward declared)
+
+template <typename T, typename = void>
+struct is_complete : std::false_type {};
+
+template <typename T>
+struct is_complete<T, std::void_t<decltype(sizeof(T) != 0)>> : std::true_type {};
+
+template<typename T>
+constexpr bool is_complete_v = is_complete<T>::value;
+
+
 #include <atomic>
 extern std::atomic<uint32_t> g_threadIdAllocator;
 extern thread_local uint32_t g_threadId;
@@ -19,7 +38,10 @@ extern thread_local uint32_t g_threadId;
 //
 ///////////////////////////////////////////////////////////////////////
 
-#if 1
+#if 0
+
+#define USE_MACRO_WRAPPED 0
+#if USE_MACRO_WRAPPED == 0
 
 template <class T, class... TArgs>  decltype(void(T{ std::declval<TArgs>()... }), std::true_type{})     test_is_braces_constructible(int);
 template <class, class...>          std::false_type                                                     test_is_braces_constructible(...);
@@ -66,7 +88,7 @@ auto to_tuple(T&& object) noexcept {
 	}
 }
 
-#else
+#else // USE_MACRO_WRAPPED
 template <class T, class... TArgs>  decltype(void(T{ std::declval<TArgs>()... }), std::true_type{})     test_is_braces_constructible(int);
 template <class, class...>          std::false_type                                                     test_is_braces_constructible(...);
 template <class T, class... TArgs>  using is_braces_constructible = decltype(test_is_braces_constructible<std::decay_t<T>, TArgs...>(0));
@@ -114,57 +136,10 @@ struct any_type {
     }
 
 GENERATE_MULTIPARAMS(TO_TUPLE_MACRO)
+
+#endif // USE_MACRO_WRAPPED
+
 #endif
-
-///////////////////////////////////////////////////////////////////////
-//
-// ThreadGuard
-//
-///////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
-// has_finding_field
-
-template<typename T, typename = void>
-struct has_finding_field : std::false_type { };
-
-template<typename T>
-struct has_finding_field<T, std::void_t<decltype(T::___this_is_a_finding_field)>> : std::true_type { };
-
-template<typename T>
-constexpr bool has_finding_field_v = has_finding_field<T>::value;
-
-
-////////////////////////////////////////////////////////////////////////////////
-// is_complete
-
-template <typename T, typename = void>
-struct is_complete : std::false_type {};
-
-template <typename T>
-struct is_complete<T, std::void_t<decltype(sizeof(T) != 0)>> : std::true_type {};
-
-template<typename T>
-constexpr bool is_complete_v = is_complete<T>::value;
-
-
-////////////////////////////////////////////////////////////////////////////////
-// Test
-
-struct IntermediateType;
-
-struct TypeA
-{
-	int a;
-	float b;
-	char c;
-	double d;
-	IntermediateType* e;
-	std::unique_ptr<IntermediateType> f;
-	int g;
-	//std::unordered_map<std::string, IntermediateType> h;
-};
-
 
 ///////////////////////////////////////////////////////////////////////
 //
@@ -172,6 +147,7 @@ struct TypeA
 //
 ///////////////////////////////////////////////////////////////////////
 
+#if 0
 ////////////////////////////////////////////////////////////////////////////////
 // FindTypeTraverseInStruct
 
@@ -320,6 +296,9 @@ struct TraverseInStruct<AnyTemplateType<AnyTemplateArguments...>, true>
 
 	using has_finding_field_tuple = tuple_distinct_t<found_tuple>;
 };
+
+#endif
+
 
 ///////////////////////////////////////////////////////////////////////
 //
@@ -583,31 +562,6 @@ struct WriteAccessorForGroup
 	}
 };
 
-template<typename T>
-struct FindingType
-{
-	static uint32_t ___this_is_a_finding_field;
-};
-
-struct IntermediateType
-{
-	int a;
-	FindingType<int> f;
-};
-
-template<typename TypeToGuard, bool ForwardDeclared>
-struct DeferredGuard
-{
-
-};
-
-struct Certificate {};
-
-struct ThreadSafetyCertification
-{
-	ThreadSafetyCertification(Certificate) {}
-};
-
 template<typename... Types>
 struct make_tuple_owner_of_types
 {
@@ -624,6 +578,3 @@ struct make_tuple_owner_of_types
 	}
 
 #define REGISTER_THREAD_SATEFY(type)	OwnerOf<type>* __owner = nullptr;
-#define REGISTER_OWNER(type)			template OwnerOf<type>
-
-#define THREAD_GUARDED(name)			name; ThreadGuard
