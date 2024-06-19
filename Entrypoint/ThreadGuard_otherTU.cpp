@@ -3,6 +3,6 @@
 #include "ThreadGuard.h"
 
 
-struct Level;
-
-REGISTER_OWNER(Level);
+//struct Level;
+//
+//REGISTER_OWNER(Level);

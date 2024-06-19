@@ -4,6 +4,9 @@
 #include <chrono>
 #include "ThreadGuard.h"
 
+std::atomic<uint32_t> g_threadIdAllocator = 0;
+thread_local uint32_t g_threadId;
+
 using namespace std::chrono_literals;
 
 std::string generateName()
@@ -25,7 +28,7 @@ struct Derived : Base	{ virtual ~Derived() {} };
 struct Component
 {
 	REGISTER_THREAD_SATEFY(Component);
-	SET_AS_OWNER_OF_TYPES();
+	//SET_AS_OWNER_OF_TYPES();
 };
 
 struct Object
@@ -47,16 +50,16 @@ public:
 
 
 public:
-	void workLV0();
-	void workLV0_const() const;
+	void work_LV0();
+	void work_LV0_const() const;
 
-private:
+private: // Level의 'Object' 관리에 영향을 받음
 	std::unordered_map<std::string, std::shared_ptr<Object>> _loadedObjects;
 
 	std::unique_ptr<Base> _derived;
 };
 
-void Level::workLV0_const() const
+void Level::work_LV0_const() const
 {
 	// Do with 'ro'
 	_loadedObjects;
@@ -73,9 +76,9 @@ public:
 	void main_generateLevels();
 	void main_LM0();
 
-	void workLM0();
+	void work_LM0();
 
-private:
+private: // LevelManager의 'Level 관리'에 영향을 받음.
 	std::unordered_map<std::string, std::shared_ptr<Level>> _levels;
 	ThreadGuard<std::unique_ptr<Level>> _instantLevel;
 	std::unique_ptr<ThreadGuard<Level>> _instantLevelIn;
@@ -83,7 +86,7 @@ private:
 
 uint32_t g_step = 0;
 
-void LevelManager::workLM0()
+void LevelManager::work_LM0()
 {
 	for (int i = 0; i < 20; ++i)
 	{
@@ -91,11 +94,11 @@ void LevelManager::workLM0()
 			ReadAccessor ro(_instantLevel);
 
 			// Do with 'ro'
-			ro->workLV0_const();
+			ro->work_LV0_const();
 		}
 		//{
 		//	ReadAccessor ro(*_instantLevelIn.get());
-		//	ro->workLV0_const();
+		//	ro->work_LV0_const();
 		//}
 		std::this_thread::sleep_for(100ms);
 	}
@@ -107,17 +110,19 @@ void LevelManager::main_LM0()
 
 	// do for _instantLevel;
 
-	std::this_thread::sleep_for(20000ms);
+	std::this_thread::sleep_for(2000ms);
 }
 
 void thread_work(ThreadGuard<LevelManager>* levelManager)
 {
-	{
-		WriteAccessor rw(*levelManager);
-		rw->workLM0();
-	}
+	g_threadId = g_threadIdAllocator++;
 
 	while (g_step == 0);
+
+	{
+		WriteAccessor rw(*levelManager);
+		rw->work_LM0();
+	}
 
 	while (g_step == 1);
 
@@ -127,6 +132,8 @@ void thread_work(ThreadGuard<LevelManager>* levelManager)
 
 void threadguard_test()
 {
+	g_threadId = g_threadIdAllocator++;
+
 	ThreadGuard<LevelManager> levelManager;
 
 	std::thread t1(thread_work, &levelManager);
@@ -153,11 +160,14 @@ void LevelManager::main_generateLevels()
 	int numLevels = int((rand() % (192+1)) + 64);
 	for (int i = 0; i < numLevels; ++i)
 	{
-		_levels.insert({ generateName(), std::make_shared<Level>(i) });
+		auto result = _levels.insert({ generateName(), std::make_shared<Level>(i) });
+		registerTenant(*result.first->second.get());
 	}
 
-	_instantLevel = std::make_unique<Level>(5);
-	
+	auto instantLevel = std::make_unique<Level>(5);
+	registerTenant(*instantLevel);
+
+	_instantLevel = std::move(instantLevel);
 	WriteAccessor rwForInstant(_instantLevel);
 	// ... initialize for instance level
 }
