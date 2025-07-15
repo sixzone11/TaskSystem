@@ -136,7 +136,7 @@ inline void __createCallableTasks(std::unique_ptr<ITask>* outCallableTasks, std:
 #if defined(REPORT_MEMORY_LAYOUTS)
 	constexpr size_t sizeOfAllTasks = (size_CallableTask<CallableInfoType, I, std::tuple_element_t<I, TaskCallableTuple>>() + ...);
 
-	static const bool once = [&taskCommitInfo]() {
+	static const bool once = [&taskCommitInfo, sizeOfAllTasks]() {
 		std::cout
 			<< "TaskType: " << std::endl
 			<< "TaskCommitInfo Size: " << sizeof(TaskCommitInfo) << std::endl

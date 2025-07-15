@@ -134,4 +134,4 @@ public:
 };
 
 template<typename TupleToDistinct>
-using tuple_distinct_t = tuple_distinct<TupleToDistinct>::type;
+using tuple_distinct_t = typename tuple_distinct<TupleToDistinct>::type;
