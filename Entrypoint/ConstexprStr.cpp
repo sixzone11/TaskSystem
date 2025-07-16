@@ -118,6 +118,18 @@ uint32_t getBindingKey(Binding<binding_name, ResourceT, Args...>& /*binding*/)
 };
 
 template<typename... BindingTs>
+std::initializer_list<uint32_t> getBindingKey(BindingBlock<BindingTs...>& bindingBlock )
+{
+	using BindingTuple = decltype(BindingBlock<BindingTs...>::_bindings);
+	constexpr size_t NumBindingsInBlock = std::tuple_size_v<BindingTuple>;
+	
+	return [] <std::size_t... IndexPack> (BindingBlock<BindingTs...>& bindingBlock, std::index_sequence<IndexPack...>)
+	{
+		return { getBindingKey(std::get<IndexPack>(bindingBlock._bindings))..., };
+	}( bindingBlock, std::make_index_sequence<NumBindingsInBlock>() );
+};
+
+template<typename... BindingTs>
 void bindResources(BindingTs&&... bindings)
 {
 	constexpr size_t NumBindingTs = sizeof...(BindingTs);
