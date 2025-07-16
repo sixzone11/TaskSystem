@@ -129,21 +129,42 @@ std::initializer_list<uint32_t> getBindingKey(BindingBlock<BindingTs...>& bindin
 	}( bindingBlock, std::make_index_sequence<NumBindingsInBlock>() );
 };
 
+template<typename T>
+struct BindingMeta;
+
+template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
+struct BindingMeta<Binding<binding_name, ResourceT, Args...>>
+{
+	static constexpr size_t _count = 1;
+};
+
+template<typename... BindingTs>
+struct BindingMeta<BindingBlock<BindingTs...>>
+{
+	static constexpr size_t _count = (BindingMeta<BindingTs>::_count + ...);
+};
+
+template<typename... BindingTs>
+constexpr size_t getNumBindings()
+{
+	return (BindingMeta<BindingTs>::_count + ...);
+}
+
 template<typename... BindingTs>
 void bindResources(BindingTs&&... bindings)
 {
-	constexpr size_t NumBindingTs = sizeof...(BindingTs);
+	constexpr size_t NumBindings = getNumBindings<BindingTs...>();
 
 	struct LocalBinder
 	{
-		uint32_t _bindingKeys[NumBindingTs];
+		uint32_t _bindingKeys[NumBindings];
 	};
 
 	static LocalBinder localBinder = [&bindings...](void) { return LocalBinder{ { getBindingKey(bindings)..., } }; } ();
 
 	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::index_sequence<IndexPack...>, BindingTs&&... bindings) {
 		(bindResourceInternal(localBinder._bindingKeys[IndexPack], std::forward<BindingTs>(bindings)), ...);
-	} (localBinder, std::make_index_sequence<NumBindingTs>(), std::forward<BindingTs>(bindings)...);
+	} (localBinder, std::make_index_sequence<NumBindings>(), std::forward<BindingTs>(bindings)...);
 }
 
 void constexpr_str_test()
