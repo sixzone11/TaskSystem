@@ -280,7 +280,81 @@ void constexpr_str_test()
 
 	bindResources( // New combination Literals: <"g_texA", "g_bufA"> and ResourceT: <T, B>
 		Bind<"g_texA">(tex1),
-		Bind<"g_bufA">(buf1));
+		Bind<"g_bufA">(buf1),
+		Condition(true,
+			Bind<"g_bufB">(buf2),
+			Bind<"g_bufC">(buf3)
+			));
+
+	bindResources( // Same as above but only difference is condition=false.
+		Bind<"g_texA">(tex1),
+		Bind<"g_bufA">(buf1),
+		Condition(false,
+			Bind<"g_bufB">(buf2),
+			Bind<"g_bufC">(buf3)
+		));
+
+	bindResources( // Complex case
+		Bind<"g_texA">(tex1),
+		Bind<"g_bufA">(buf1),
+		Condition(true,
+			Bind<"g_bufB">(buf2),
+			Bind<"g_bufC">(buf3),
+			Condition(true,
+				Bind<"g_bufB">(buf2),
+				Condition(true,
+					Bind<"g_bufB">(buf2),
+					Bind<"g_bufC">(buf3)
+				),
+				Bind<"g_bufC">(buf3)
+			)
+		),
+		Condition(false,
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texC">(tex3)
+		));
+
+	bindResources( // Same as above but condition flipped.
+		Bind<"g_texA">(tex1),
+		Bind<"g_bufA">(buf1),
+		Condition(false,
+			Bind<"g_bufB">(buf2),
+			Bind<"g_bufC">(buf3),
+			Condition(true,
+				Bind<"g_bufB">(buf2),
+				Condition(true,
+					Bind<"g_bufB">(buf2),
+					Bind<"g_bufC">(buf3)
+				),
+				Bind<"g_bufC">(buf3)
+			)
+		),
+		Condition(true,
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texC">(tex3)
+		));
 
 	bindResources( // New combination Literals: <"g_texA", "g_texArray", "g_bufA"> and ResourceT: <T, v<T>, B>
 		Bind<"g_texA">(tex1),
