@@ -86,12 +86,6 @@ struct BindingMeta<BindingBlock<BindingTs...>>
 	static constexpr bool _isBlock = true;
 };
 
-template<typename... BindingTs>
-constexpr size_t getNumBindings()
-{
-	return (BindingMeta<BindingTs>::_count + ...);
-}
-
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
 void bindResourceInternal(uint32_t bindingKey, Binding<binding_name, ResourceT, Args...>&& binding)
 {
@@ -155,7 +149,8 @@ std::initializer_list<uint32_t> getBindingKey(BindingBlock<BindingTs...>& bindin
 template<typename... BindingTs>
 void bindResources(BindingTs&&... bindings)
 {
-	constexpr size_t NumBindings = getNumBindings<BindingTs...>();
+	using BindingMetaT = BindingMeta<BindingBlock<BindingTs...>>;
+	constexpr size_t NumBindings = BindingMetaT::_count;
 
 	struct LocalBinder
 	{
