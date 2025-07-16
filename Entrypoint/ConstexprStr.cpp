@@ -69,6 +69,27 @@ auto Condition(const bool condition, BindingTs&&... bindings)
 	return BindingBlock<BindingTs...>{ std::forward_as_tuple<BindingTs>(bindings...), condition };
 }
 
+template<typename T>
+struct BindingMeta;
+
+template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
+struct BindingMeta<Binding<binding_name, ResourceT, Args...>>
+{
+	static constexpr size_t _count = 1;
+};
+
+template<typename... BindingTs>
+struct BindingMeta<BindingBlock<BindingTs...>>
+{
+	static constexpr size_t _count = (BindingMeta<BindingTs>::_count + ...);
+};
+
+template<typename... BindingTs>
+constexpr size_t getNumBindings()
+{
+	return (BindingMeta<BindingTs>::_count + ...);
+}
+
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
 void bindResourceInternal(uint32_t bindingKey, Binding<binding_name, ResourceT, Args...>&& binding)
 {
@@ -128,27 +149,6 @@ std::initializer_list<uint32_t> getBindingKey(BindingBlock<BindingTs...>& bindin
 		return { getBindingKey(std::get<IndexPack>(bindingBlock._bindings))..., };
 	}( bindingBlock, std::make_index_sequence<NumBindingsInBlock>() );
 };
-
-template<typename T>
-struct BindingMeta;
-
-template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
-struct BindingMeta<Binding<binding_name, ResourceT, Args...>>
-{
-	static constexpr size_t _count = 1;
-};
-
-template<typename... BindingTs>
-struct BindingMeta<BindingBlock<BindingTs...>>
-{
-	static constexpr size_t _count = (BindingMeta<BindingTs>::_count + ...);
-};
-
-template<typename... BindingTs>
-constexpr size_t getNumBindings()
-{
-	return (BindingMeta<BindingTs>::_count + ...);
-}
 
 template<typename... BindingTs>
 void bindResources(BindingTs&&... bindings)
