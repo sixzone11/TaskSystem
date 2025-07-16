@@ -104,6 +104,19 @@ void bindResourceInternal(uint32_t bindingKey, BindingBlock<BindingTs...>&& bind
 	static_assert(false, "not yet");
 }
 
+template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
+uint32_t getBindingKey(Binding<binding_name, ResourceT, Args...>& /*binding*/)
+{
+	auto result = global_string_map.insert({ binding_name.m_data, uint32_t(-1) });
+	if (result.second == true)
+	{
+		auto& resultPair = result.first;
+		resultPair->second = uint32_t(global_string_map.size() - 1);
+	}
+
+	return result.first->second;
+};
+
 template<typename... BindingTs>
 void bindResources(BindingTs&&... bindings)
 {
@@ -114,19 +127,7 @@ void bindResources(BindingTs&&... bindings)
 		uint32_t _bindingKeys[NumBindingTs];
 	};
 
-	auto getBindingKey = [] <basic_fixed_string binding_name, typename ResourceT, typename... Args> (Binding<binding_name, ResourceT, Args...>& /*binding*/)
-	{
-		auto result = global_string_map.insert({ binding_name.m_data, uint32_t(-1) });
-		if (result.second == true)
-		{
-			auto& resultPair = result.first;
-			resultPair->second = uint32_t(global_string_map.size() - 1);
-		}
-
-		return result.first->second;
-	};
-
-	static LocalBinder localBinder = [&bindings..., getBindingKey](void) { return LocalBinder{ { getBindingKey(bindings)..., } }; } ();
+	static LocalBinder localBinder = [&bindings...](void) { return LocalBinder{ { getBindingKey(bindings)..., } }; } ();
 
 	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::index_sequence<IndexPack...>, BindingTs&&... bindings) {
 		(bindResourceInternal(localBinder._bindingKeys[IndexPack], std::forward<BindingTs>(bindings)), ...);
