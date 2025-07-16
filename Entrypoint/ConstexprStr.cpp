@@ -177,7 +177,22 @@ template<typename... BindingTs>
 void bindResourceInternal(uint32_t bindingKeys[], BindingBlock<BindingTs...>&& bindingBlock)
 {
 	// call a bind function for a specific type of a resource, passed by arg
-	static_assert(false, "not yet");
+
+	if (bindingBlock._condition == false)
+		return;
+
+	using BindingTupleT = std::tuple<BindingTs...>;
+
+	[] <std::size_t... IndexPack> (uint32_t bindingKeys[], std::index_sequence<IndexPack...>, BindingTupleT&& bindings) {
+		auto internalCall = [&] <std::size_t TupleIndex, typename BindingT> (BindingT && binding) {
+			if constexpr (BindingMeta<std::tuple_element_t<TupleIndex, BindingTupleT>>::_isBlock)
+				bindResourceInternal(bindingKeys + std::get<TupleIndex>(BindingMeta<BindingBlock<BindingTs...>>::_offsetsInternal), std::forward<BindingT>(binding));
+			else
+				bindResourceInternal(bindingKeys[std::get<TupleIndex>(BindingMeta<BindingBlock<BindingTs...>>::_offsetsInternal)], std::forward<BindingT>(binding));
+		};
+
+		((internalCall.template operator()<IndexPack>(std::get<IndexPack>(std::forward<BindingTupleT>(bindings)))), ...);
+	} (bindingKeys, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTupleT>(bindingBlock._bindings));
 }
 
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
@@ -224,9 +239,9 @@ void bindResources(BindingTs&&... bindings)
 	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::integer_sequence<size_t, IndexPack...>, BindingTs&&... bindings) {
 		([&] {
 			if constexpr (BindingMeta<BindingTs>::_isBlock)
-				bindResourceInternal(localBinder._bindingKeys + IndexPack, std::forward<BindingTs>(bindings));
+				bindResourceInternal(localBinder._bindingKeys + std::get<IndexPack>(BindingMetaT::_offsetsInternal), std::forward<BindingTs>(bindings));
 			else
-				bindResourceInternal(localBinder._bindingKeys[IndexPack], std::forward<BindingTs>(bindings));
+				bindResourceInternal(localBinder._bindingKeys[std::get<IndexPack>(BindingMetaT::_offsetsInternal)], std::forward<BindingTs>(bindings));
 			} (), ...);
 	} (localBinder, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTs>(bindings)...);
 }
