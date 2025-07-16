@@ -76,12 +76,14 @@ template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
 struct BindingMeta<Binding<binding_name, ResourceT, Args...>>
 {
 	static constexpr size_t _count = 1;
+	static constexpr bool _isBlock = false;
 };
 
 template<typename... BindingTs>
 struct BindingMeta<BindingBlock<BindingTs...>>
 {
 	static constexpr size_t _count = (BindingMeta<BindingTs>::_count + ...);
+	static constexpr bool _isBlock = true;
 };
 
 template<typename... BindingTs>
@@ -119,7 +121,7 @@ void bindResourceInternal(uint32_t bindingKey, Binding<binding_name, IBuffer, Ar
 }
 
 template<typename... BindingTs>
-void bindResourceInternal(uint32_t bindingKey, BindingBlock<BindingTs...>&& bindingBlock)
+void bindResourceInternal(uint32_t bindingKeys[], BindingBlock<BindingTs...>&& bindingBlock)
 {
 	// call a bind function for a specific type of a resource, passed by arg
 	static_assert(false, "not yet");
@@ -162,8 +164,13 @@ void bindResources(BindingTs&&... bindings)
 
 	static LocalBinder localBinder = [&bindings...](void) { return LocalBinder{ { getBindingKey(bindings)..., } }; } ();
 
-	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::index_sequence<IndexPack...>, BindingTs&&... bindings) {
-		(bindResourceInternal(localBinder._bindingKeys[IndexPack], std::forward<BindingTs>(bindings)), ...);
+	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::integer_sequence<size_t, IndexPack...>, BindingTs&&... bindings) {
+		([&] {
+			if constexpr (BindingMeta<BindingTs>::_isBlock)
+				bindResourceInternal(localBinder._bindingKeys + IndexPack, std::forward<BindingTs>(bindings));
+			else
+				bindResourceInternal(localBinder._bindingKeys[IndexPack], std::forward<BindingTs>(bindings));
+			} (), ...);
 	} (localBinder, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTs>(bindings)...);
 }
 
