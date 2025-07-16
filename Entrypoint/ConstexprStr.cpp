@@ -75,13 +75,65 @@ struct BindingMeta;
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
 struct BindingMeta<Binding<binding_name, ResourceT, Args...>>
 {
+	using FlattenTupleT = std::tuple<Binding<binding_name, ResourceT, Args...>>;
+	constexpr static const std::tuple<size_t> _offsets{ 0 };
+
 	static constexpr size_t _count = 1;
 	static constexpr bool _isBlock = false;
+
+	static uint32_t getBindingKey()
+	{
+		auto result = global_string_map.insert({ binding_name.m_data, uint32_t(-1) });
+		if (result.second == true)
+		{
+			auto& resultPair = result.first;
+			resultPair->second = uint32_t(global_string_map.size() - 1);
+		}
+
+		return result.first->second;
+	}
 };
+
+template<typename... BindingTsInBlock>
+struct MultipleBindingMeta;
+
+template<typename FirstBindingT, typename... NextBindingTs>
+struct MultipleBindingMeta<FirstBindingT, NextBindingTs...> : MultipleBindingMeta<NextBindingTs...>
+{
+	using FlattenTupleT = decltype(std::tuple_cat(std::declval<typename BindingMeta<FirstBindingT>::FlattenTupleT>(), std::declval<typename MultipleBindingMeta<NextBindingTs...>::FlattenTupleT>()));
+
+	// 0,
+	// BindingTs[0]._count,
+	// BindingTs[0]._count + BindingTs[1]._count,
+	// ...
+	// BindingTs[0]._count + BindingTs[1]._count + ... + BindingTs[N-1]._count
+
+	struct OffsetNextsSrc { constexpr static const auto _var = MultipleBindingMeta<NextBindingTs...>::_offsets; };
+
+	constexpr static const auto _offsets = std::tuple_cat(
+		BindingMeta<FirstBindingT>::_offsets,
+		AddByN<OffsetNextsSrc, BindingMeta<FirstBindingT>::_count>::_var
+	);
+};
+
+template<typename BindingT>
+struct MultipleBindingMeta<BindingT>
+{
+	using FlattenTupleT = typename BindingMeta<BindingT>::FlattenTupleT;
+
+	constexpr static const auto _offsets = BindingMeta<BindingT>::_offsets;
+};
+
 
 template<typename... BindingTs>
 struct BindingMeta<BindingBlock<BindingTs...>>
 {
+	using FlattenTupleT = typename MultipleBindingMeta<BindingTs...>::FlattenTupleT;
+
+	constexpr static const auto _offsetsInternal = MultipleBindingMeta<BindingTs...>::_offsets;
+
+	constexpr static const std::tuple<size_t> _offsets{ 0 };
+
 	static constexpr size_t _count = (BindingMeta<BindingTs>::_count + ...);
 	static constexpr bool _isBlock = true;
 };
@@ -151,13 +203,16 @@ void bindResources(BindingTs&&... bindings)
 {
 	using BindingMetaT = BindingMeta<BindingBlock<BindingTs...>>;
 	constexpr size_t NumBindings = BindingMetaT::_count;
+	using FlattenTupleT = typename BindingMetaT::FlattenTupleT;
 
 	struct LocalBinder
 	{
 		uint32_t _bindingKeys[NumBindings];
 	};
 
-	static LocalBinder localBinder = [&bindings...](void) { return LocalBinder{ { getBindingKey(bindings)..., } }; } ();
+	static LocalBinder localBinder = [] <std::size_t... TupleIndexPack> (std::index_sequence<TupleIndexPack...>) {
+		return LocalBinder{ { BindingMeta<std::tuple_element_t<TupleIndexPack, FlattenTupleT>>::getBindingKey()..., } };
+	} (std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>());
 
 	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::integer_sequence<size_t, IndexPack...>, BindingTs&&... bindings) {
 		([&] {
