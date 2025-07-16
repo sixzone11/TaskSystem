@@ -164,7 +164,7 @@ void bindResources(BindingTs&&... bindings)
 
 	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::index_sequence<IndexPack...>, BindingTs&&... bindings) {
 		(bindResourceInternal(localBinder._bindingKeys[IndexPack], std::forward<BindingTs>(bindings)), ...);
-	} (localBinder, std::make_index_sequence<NumBindings>(), std::forward<BindingTs>(bindings)...);
+	} (localBinder, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTs>(bindings)...);
 }
 
 void constexpr_str_test()
