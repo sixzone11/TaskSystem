@@ -66,7 +66,7 @@ struct BindingBlock
 template<typename... BindingTs>
 auto Condition(const bool condition, BindingTs&&... bindings)
 {
-	return BindingBlock<BindingTs...>{ std::forward_as_tuple<BindingTs>(bindings...), condition };
+	return BindingBlock<BindingTs...>{ {std::forward<BindingTs>(bindings)...}, condition };
 }
 
 template<typename T>
