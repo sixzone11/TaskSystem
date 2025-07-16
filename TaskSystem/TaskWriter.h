@@ -161,195 +161,6 @@ struct TaskCommitInfo
 	virtual ~TaskCommitInfo() {}
 };
 
-///////////////////////////////////////////////////////////////////////
-//
-// Utilities
-//
-///////////////////////////////////////////////////////////////////////
-
-template<size_t... Iseq1, size_t... Iseq2>
-static constexpr auto index_sequence_cat(std::index_sequence<Iseq1...>, std::index_sequence<Iseq2...>) { return std::index_sequence<Iseq1..., Iseq2...>{}; }
-
-template<typename T, uint32_t N>
-struct AddByN
-{
-private:
-	constexpr static const uint32_t Num = std::tuple_size<decltype(T::_var)>::value;
-
-	template<typename T_, uint32_t N_, uint32_t RI>
-	struct __AddByN
-	{
-		constexpr static const uint32_t I = std::tuple_size<decltype(T::_var)>::value - RI;
-		constexpr static const auto _var = std::tuple_cat(std::make_tuple(std::get<I>(T::_var) + N), __AddByN<T_, N_, RI - 1>::_var);
-	};
-
-	template<typename T_, uint32_t N_>
-	struct __AddByN<T_, N_, 0>
-	{
-		constexpr static const auto _var = std::make_tuple();
-	};
-
-public:
-	constexpr static const auto _var = __AddByN<T, N, Num>::_var;
-};
-
-template<typename T1, typename T2>
-struct AddTwo
-{
-private:
-	constexpr static const uint32_t Num1 = std::tuple_size<decltype(T1::_var)>::value;
-	constexpr static const uint32_t Num2 = std::tuple_size<decltype(T2::_var)>::value;
-	static_assert(Num1 == Num2, "Size must be same");
-
-	template<typename T1_, typename T2_, uint32_t RI>
-	struct __AddTwo
-	{
-		constexpr static const uint32_t I = std::tuple_size<decltype(T1::_var)>::value - RI;
-		constexpr static const auto _var = std::tuple_cat(std::make_tuple(std::get<I>(T1::_var) + std::get<I>(T2::_var)), __AddTwo<T1_, T2_, RI - 1>::_var);
-	};
-
-	template<typename T1_, typename T2_>
-	struct __AddTwo<T1_, T2_, 0>
-	{
-		constexpr static const auto _var = std::make_tuple();
-	};
-
-public:
-	constexpr static const auto _var = __AddTwo<T1, T2, Num1>::_var;
-};
-
-template<typename T, uint32_t N>
-struct MultiplyByN
-{
-private:
-	constexpr static const uint32_t Num = std::tuple_size<decltype(T::_var)>::value;
-
-	template<typename T_, uint32_t N_, uint32_t RI>
-	struct __MultiplyByN
-	{
-		constexpr static const uint32_t I = std::tuple_size<decltype(T::_var)>::value - RI;
-		constexpr static const auto _var = std::tuple_cat(std::make_tuple(std::get<I>(T::_var) * N), __MultiplyByN<T_, N_, RI - 1>::_var);
-	};
-
-	template<typename T_, uint32_t N_>
-	struct __MultiplyByN<T_, N_, 0>
-	{
-		constexpr static const auto _var = std::make_tuple();
-	};
-
-public:
-	constexpr static const auto _var = __MultiplyByN<T, N, Num>::_var;
-};
-
-template<typename T1, typename T2>
-struct MultiplyTwo
-{
-private:
-	constexpr static const uint32_t Num1 = std::tuple_size<decltype(T1::_var)>::value;
-	constexpr static const uint32_t Num2 = std::tuple_size<decltype(T2::_var)>::value;
-	static_assert(Num1 == Num2, "Size must be same");
-
-	template<typename T1_, typename T2_, uint32_t RI>
-	struct __MultiplyTwo
-	{
-		constexpr static const uint32_t I = std::tuple_size<decltype(T1::_var)>::value - RI;
-		constexpr static const auto _var = std::tuple_cat(std::make_tuple(std::get<I>(T1::_var) * std::get<I>(T2::_var)), __MultiplyTwo<T1_, T2_, RI - 1>::_var);
-	};
-
-	template<typename T1_, typename T2_>
-	struct __MultiplyTwo<T1_, T2_, 0>
-	{
-		constexpr static const auto _var = std::make_tuple();
-	};
-
-public:
-	constexpr static const auto _var = __MultiplyTwo<T1, T2, Num1>::_var;
-};
-
-template<uint32_t N, typename T>
-struct MakeOffsetBias
-{
-private:
-	constexpr static const uint32_t MAX = N - 1;
-
-	template<typename T_, uint32_t I, uint32_t J>
-	struct __MakeOffsetBias
-	{
-		constexpr static const auto _var = std::tuple_cat(std::make_tuple(J), __MakeOffsetBias<T, (I + 1), ((I < std::get<J>(T::_var)) ? J : (J + 1))>::_var);
-	};
-
-	template<typename T_, uint32_t J>
-	struct __MakeOffsetBias<T_, MAX, J>
-	{
-		constexpr static const auto _var = std::make_tuple(J);
-	};
-
-public:
-	constexpr static const auto _var = __MakeOffsetBias<T, 0, 0>::_var;
-};
-
-template<uint32_t NumNodes, uint32_t NumLinks, uint32_t NumOutputs, uint32_t NumInputsNext, typename Links, typename Offsets, typename Outputs, typename InputsNext>
-struct MakeExpandedLink
-{
-private:
-	static_assert(NumLinks == std::tuple_size<decltype(Links::_var)>::value, "Expected NumLinks is mismatched with Links");
-	static_assert(NumOutputs == std::tuple_size<decltype(Outputs::_var)>::value, "Expected NumOutputs is mismatched with Outputs");
-	static_assert(NumInputsNext == std::tuple_size<decltype(InputsNext::_var)>::value, "Expected NumInputsNext is mismatched with InputsNext");
-
-	constexpr static const auto _linkedInputs = AddByN<InputsNext, NumNodes>::_var;
-
-	constexpr static const uint32_t MaxLinks = NumLinks - 1;
-	constexpr static const uint32_t MaxLinkedInputs = NumInputsNext - 1;
-
-	template<typename Links_, uint32_t L, bool useLinkedInput>
-	struct __MakeLink { constexpr static const auto _var = std::make_tuple(std::get<L>(Links::_var)); };
-
-	template<typename Links_, uint32_t L>
-	struct __MakeLink<Links_, L, false> { constexpr static const auto _var = _linkedInputs; };
-
-	template<typename Links_, uint32_t L, uint32_t O>
-	struct __MakeExpandedLink
-	{
-		constexpr static const bool cond = (L != std::get<std::get<O>(Outputs::_var)>(Offsets::_var));
-		constexpr static const auto _var = std::tuple_cat(
-			__MakeLink<Links, L, cond>::_var,
-			__MakeExpandedLink<Links, L + 1, cond ? O : (O + 1)>::_var);
-	};
-
-	template<typename Links_, uint32_t O>
-	struct __MakeExpandedLink<Links_, NumLinks, O>
-	{
-		constexpr static const auto _var = std::make_tuple();
-	};
-
-
-public:
-	constexpr static const auto _var = __MakeExpandedLink<Links, 0, 0>::_var;
-};
-
-template<uint32_t NumNodes, uint32_t NumLinks, uint32_t NumOutputs, typename Links, typename Offsets, typename Outputs>
-struct MakeMergedOutput
-{
-	template<typename Links_, uint32_t L, uint32_t O>
-	struct __MakeMergedOutput
-	{
-		constexpr static const bool cond = (L != std::get<std::get<O>(Outputs::_var)>(Offsets::_var));
-		constexpr static const auto _var = std::tuple_cat(
-			std::make_tuple(cond ? std::get<L>(Links::_var) : NumNodes),
-			__MakeMergedOutput<Links, (L + 1), cond ? O : (O + 1)>::_var);
-	};
-
-	template<typename Links_, uint32_t O>
-	struct __MakeMergedOutput<Links_, NumLinks, O>
-	{
-		constexpr static const auto _var = std::make_tuple();
-	};
-
-
-public:
-	constexpr static const auto _var = __MakeMergedOutput<Links, 0, 0>::_var;
-};
-
 
 ///////////////////////////////////////////////////////////////////////
 //
@@ -361,7 +172,7 @@ public:
 ///////////////////////////////////////////////////////////////////////
 // MetaNode
 
-// Delete ambiguity between <1,1,1,1,DefType> and <M,L,I,O,true/false>
+// Desc(jiman): Delete ambiguity between <1,1,1,1,DefType> and <M,L,I,O,true/false>
 template<>
 struct MetaNode<1, 1, 1, 1, true>
 {
@@ -420,6 +231,45 @@ struct BuildMetaNodeSerial;
 
 template<typename First, typename Second, typename... Nexts>
 struct BuildMetaNodeSerial_Next;
+
+template<uint32_t NumNodes, uint32_t NumLinks, uint32_t NumOutputs, uint32_t NumInputsNext, typename Links, typename Offsets, typename Outputs, typename InputsNext>
+struct MakeExpandedLink
+{
+private:
+	static_assert(NumLinks == std::tuple_size<decltype(Links::_var)>::value, "Expected NumLinks is mismatched with Links");
+	static_assert(NumOutputs == std::tuple_size<decltype(Outputs::_var)>::value, "Expected NumOutputs is mismatched with Outputs");
+	static_assert(NumInputsNext == std::tuple_size<decltype(InputsNext::_var)>::value, "Expected NumInputsNext is mismatched with InputsNext");
+
+	constexpr static const auto _linkedInputs = AddByN<InputsNext, NumNodes>::_var;
+
+	constexpr static const uint32_t MaxLinks = NumLinks - 1;
+	constexpr static const uint32_t MaxLinkedInputs = NumInputsNext - 1;
+
+	template<typename Links_, uint32_t L, bool useLinkedInput>
+	struct __MakeLink { constexpr static const auto _var = std::make_tuple(std::get<L>(Links::_var)); };
+
+	template<typename Links_, uint32_t L>
+	struct __MakeLink<Links_, L, false> { constexpr static const auto _var = _linkedInputs; };
+
+	template<typename Links_, uint32_t L, uint32_t O>
+	struct __MakeExpandedLink
+	{
+		constexpr static const bool cond = (L != std::get<std::get<O>(Outputs::_var)>(Offsets::_var));
+		constexpr static const auto _var = std::tuple_cat(
+			__MakeLink<Links, L, cond>::_var,
+			__MakeExpandedLink<Links, L + 1, cond ? O : (O + 1)>::_var);
+	};
+
+	template<typename Links_, uint32_t O>
+	struct __MakeExpandedLink<Links_, NumLinks, O>
+	{
+		constexpr static const auto _var = std::make_tuple();
+	};
+
+
+public:
+	constexpr static const auto _var = __MakeExpandedLink<Links, 0, 0>::_var;
+};
 
 template<
 	uint32_t NumNodes, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes,
@@ -517,6 +367,28 @@ struct BuildMetaNodeParallel;
 template<typename First, typename Second, typename... Nexts>
 struct BuildMetaNodeParallel_Next;
 
+template<uint32_t NumNodes, uint32_t NumLinks, uint32_t NumOutputs, typename Links, typename Offsets, typename Outputs>
+struct MakeMergedOutput
+{
+	template<typename Links_, uint32_t L, uint32_t O>
+	struct __MakeMergedOutput
+	{
+		constexpr static const bool cond = (L != std::get<std::get<O>(Outputs::_var)>(Offsets::_var));
+		constexpr static const auto _var = std::tuple_cat(
+			std::make_tuple(cond ? std::get<L>(Links::_var) : NumNodes),
+			__MakeMergedOutput<Links, (L + 1), cond ? O : (O + 1)>::_var);
+	};
+
+	template<typename Links_, uint32_t O>
+	struct __MakeMergedOutput<Links_, NumLinks, O>
+	{
+		constexpr static const auto _var = std::make_tuple();
+	};
+
+
+public:
+	constexpr static const auto _var = __MakeMergedOutput<Links, 0, 0>::_var;
+};
 
 template<uint32_t NumNodes, uint32_t NumLinks, uint32_t NumInputs, uint32_t NumOutputs, bool DepType, typename... Pathes, typename... Nexts>
 struct BuildMetaNodeParallel<MetaNode<NumNodes, NumLinks, NumInputs, NumOutputs, DepType, Pathes...>, Nexts...>
@@ -843,48 +715,6 @@ std::vector<uint32_t> copyToVec()
 	return vec;
 }
 
-
-///////////////////////////////////////////////////////////////////////
-//
-// Tuple Utilities
-//
-///////////////////////////////////////////////////////////////////////
-
-template<typename T>
-void printTupleElement(const T& t);
-
-template<class Tuple, std::size_t N>
-struct TuplePrinter
-{
-	static void print(const Tuple& t)
-	{
-		TuplePrinter<Tuple, N - 1>::print(t);
-		printTupleElement(std::get<N - 1>(t));
-	}
-};
-
-template<class Tuple>
-struct TuplePrinter<Tuple, 1>
-{
-	static void print(const Tuple& t)
-	{
-		printTupleElement(std::get<0>(t));
-	}
-};
-
-template<typename... Args, std::enable_if_t<sizeof...(Args) == 0, int> = 0>
-void printTupleElement(const std::tuple<Args...>& t)
-{
-	std::cout << "()\n";
-}
-
-template<typename... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>
-void printTupleElement(const std::tuple<Args...>& t)
-{
-	std::cout << "(";
-	TuplePrinter<decltype(t), sizeof...(Args)>::print(t);
-	std::cout << ")\n";
-}
 
 ///////////////////////////////////////////////////////////////////////
 // Print Task

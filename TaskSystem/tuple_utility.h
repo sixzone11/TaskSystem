@@ -135,3 +135,171 @@ public:
 
 template<typename TupleToDistinct>
 using tuple_distinct_t = typename tuple_distinct<TupleToDistinct>::type;
+
+
+////////////////////////////////////////////////////////////////////////////////
+// printTupleElement
+
+template<typename T>
+void printTupleElement(const T& t);
+
+template<class Tuple, std::size_t N>
+struct TuplePrinter
+{
+	static void print(const Tuple& t)
+	{
+		TuplePrinter<Tuple, N - 1>::print(t);
+		printTupleElement(std::get<N - 1>(t));
+	}
+};
+
+template<class Tuple>
+struct TuplePrinter<Tuple, 1>
+{
+	static void print(const Tuple& t)
+	{
+		printTupleElement(std::get<0>(t));
+	}
+};
+
+template<typename... Args, std::enable_if_t<sizeof...(Args) == 0, int> = 0>
+void printTupleElement(const std::tuple<Args...>& t)
+{
+	std::cout << "()\n";
+}
+
+template<typename... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>
+void printTupleElement(const std::tuple<Args...>& t)
+{
+	std::cout << "(";
+	TuplePrinter<decltype(t), sizeof...(Args)>::print(t);
+	std::cout << ")\n";
+}
+
+
+///////////////////////////////////////////////////////////////////////
+//
+// Utilities
+//
+///////////////////////////////////////////////////////////////////////
+
+template<size_t... Iseq1, size_t... Iseq2>
+static constexpr auto index_sequence_cat(std::index_sequence<Iseq1...>, std::index_sequence<Iseq2...>) { return std::index_sequence<Iseq1..., Iseq2...>{}; }
+
+template<typename T, uint32_t N>
+struct AddByN
+{
+private:
+	constexpr static const uint32_t Num = std::tuple_size<decltype(T::_var)>::value;
+
+	template<typename T_, uint32_t N_, uint32_t RI>
+	struct __AddByN
+	{
+		constexpr static const uint32_t I = std::tuple_size<decltype(T::_var)>::value - RI;
+		constexpr static const auto _var = std::tuple_cat(std::make_tuple(std::get<I>(T::_var) + N), __AddByN<T_, N_, RI - 1>::_var);
+	};
+
+	template<typename T_, uint32_t N_>
+	struct __AddByN<T_, N_, 0>
+	{
+		constexpr static const auto _var = std::make_tuple();
+	};
+
+public:
+	constexpr static const auto _var = __AddByN<T, N, Num>::_var;
+};
+
+template<typename T1, typename T2>
+struct AddTwo
+{
+private:
+	constexpr static const uint32_t Num1 = std::tuple_size<decltype(T1::_var)>::value;
+	constexpr static const uint32_t Num2 = std::tuple_size<decltype(T2::_var)>::value;
+	static_assert(Num1 == Num2, "Size must be same");
+
+	template<typename T1_, typename T2_, uint32_t RI>
+	struct __AddTwo
+	{
+		constexpr static const uint32_t I = std::tuple_size<decltype(T1::_var)>::value - RI;
+		constexpr static const auto _var = std::tuple_cat(std::make_tuple(std::get<I>(T1::_var) + std::get<I>(T2::_var)), __AddTwo<T1_, T2_, RI - 1>::_var);
+	};
+
+	template<typename T1_, typename T2_>
+	struct __AddTwo<T1_, T2_, 0>
+	{
+		constexpr static const auto _var = std::make_tuple();
+	};
+
+public:
+	constexpr static const auto _var = __AddTwo<T1, T2, Num1>::_var;
+};
+
+template<typename T, uint32_t N>
+struct MultiplyByN
+{
+private:
+	constexpr static const uint32_t Num = std::tuple_size<decltype(T::_var)>::value;
+
+	template<typename T_, uint32_t N_, uint32_t RI>
+	struct __MultiplyByN
+	{
+		constexpr static const uint32_t I = std::tuple_size<decltype(T::_var)>::value - RI;
+		constexpr static const auto _var = std::tuple_cat(std::make_tuple(std::get<I>(T::_var) * N), __MultiplyByN<T_, N_, RI - 1>::_var);
+	};
+
+	template<typename T_, uint32_t N_>
+	struct __MultiplyByN<T_, N_, 0>
+	{
+		constexpr static const auto _var = std::make_tuple();
+	};
+
+public:
+	constexpr static const auto _var = __MultiplyByN<T, N, Num>::_var;
+};
+
+template<typename T1, typename T2>
+struct MultiplyTwo
+{
+private:
+	constexpr static const uint32_t Num1 = std::tuple_size<decltype(T1::_var)>::value;
+	constexpr static const uint32_t Num2 = std::tuple_size<decltype(T2::_var)>::value;
+	static_assert(Num1 == Num2, "Size must be same");
+
+	template<typename T1_, typename T2_, uint32_t RI>
+	struct __MultiplyTwo
+	{
+		constexpr static const uint32_t I = std::tuple_size<decltype(T1::_var)>::value - RI;
+		constexpr static const auto _var = std::tuple_cat(std::make_tuple(std::get<I>(T1::_var) * std::get<I>(T2::_var)), __MultiplyTwo<T1_, T2_, RI - 1>::_var);
+	};
+
+	template<typename T1_, typename T2_>
+	struct __MultiplyTwo<T1_, T2_, 0>
+	{
+		constexpr static const auto _var = std::make_tuple();
+	};
+
+public:
+	constexpr static const auto _var = __MultiplyTwo<T1, T2, Num1>::_var;
+};
+
+template<uint32_t N, typename T>
+struct MakeOffsetBias
+{
+private:
+	constexpr static const uint32_t MAX = N - 1;
+
+	template<typename T_, uint32_t I, uint32_t J>
+	struct __MakeOffsetBias
+	{
+		constexpr static const auto _var = std::tuple_cat(std::make_tuple(J), __MakeOffsetBias<T, (I + 1), ((I < std::get<J>(T::_var)) ? J : (J + 1))>::_var);
+	};
+
+	template<typename T_, uint32_t J>
+	struct __MakeOffsetBias<T_, MAX, J>
+	{
+		constexpr static const auto _var = std::make_tuple(J);
+	};
+
+public:
+	constexpr static const auto _var = __MakeOffsetBias<T, 0, 0>::_var;
+};
