@@ -1,5 +1,12 @@
 #include "pch.h"
 
+inline static void printTupleElement(const size_t& t)
+{
+	std::cout << "(" << t << ")\n";
+}
+
+#include "TaskSystem/tuple_utility.h"
+
 #if _MSVC_LANG < 202000L || __cplusplus < 202000L
 
 void constexpr_str_test()
