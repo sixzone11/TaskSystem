@@ -2,6 +2,15 @@
 
 #include "TaskSystem/tuple_utility.h"
 
+///////////////////////////////////////////////////////////////////////
+//
+// Bulk Literal String Binding
+//
+///////////////////////////////////////////////////////////////////////
+
+// Note(jiman): Bulk literal-string binding.
+void constexpr_str_test();
+
 #if _MSVC_LANG < 202000L || __cplusplus < 202000L
 
 void constexpr_str_test()
@@ -10,6 +19,9 @@ void constexpr_str_test()
 }
 
 #else
+
+///////////////////////////////////////////////////////////////////////
+// basic_fixed_string
 
 template <typename CharT, std::size_t N>
 struct basic_fixed_string
@@ -32,6 +44,10 @@ struct basic_fixed_string<CharT, 0>
 constexpr basic_fixed_string<char, 0> null_fixed_string{ nullptr };
 constexpr basic_fixed_string<wchar_t, 0> null_fixed_wstring{ nullptr };
 
+
+///////////////////////////////////////////////////////////////////////
+// Sample RHI-related and commands
+
 struct IResource {};
 struct ITexture : public IResource {};
 struct IBuffer : public IResource {};
@@ -39,6 +55,10 @@ struct IBuffer : public IResource {};
 void bindTexture(uint32_t bindingKey, ITexture* texture) {}
 void bindTexture(uint32_t bindingKey, std::vector<ITexture*>& textures) {}
 void bindBuffer(uint32_t bindingKey, ITexture* texture) {}
+
+
+///////////////////////////////////////////////////////////////////////
+// global_string_map
 
 std::unordered_map<std::string, uint32_t> global_string_map;
 uint32_t global_accum[3][256] = {};
@@ -54,6 +74,10 @@ uint32_t getBindingKey(const std::string& bindingName)
 
 	return result.first->second;
 };
+
+
+///////////////////////////////////////////////////////////////////////
+// Binding Primitive
 
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
 struct Binding
@@ -125,6 +149,10 @@ auto&& getBinding(BindingBlock<BindingInBlockTs...>&& binding, BindingTs&&... bi
 	else
 		return getBinding<Index - sizeof...(BindingInBlockTs)>(std::forward<BindingTs>(bindings) ...);
 }
+
+
+///////////////////////////////////////////////////////////////////////
+// Binding Meta
 
 template<typename T>
 struct BindingMeta;
@@ -199,6 +227,10 @@ struct BindingMeta<BindingBlock<BindingTs...>>
 	static constexpr bool _isBlock = true;
 	static constexpr bool _isVariableStringBinding = (BindingMeta<BindingTs>::_isVariableStringBinding || ...);
 };
+
+
+///////////////////////////////////////////////////////////////////////
+// Binding Commands
 
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
 void bindResourceInternal(uint32_t bindingKey, Binding<binding_name, ResourceT, Args...>&& binding)
@@ -303,6 +335,10 @@ void bindResources(BindingTs&&... bindings)
 			} (), ...);
 	} (localBinder, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTs>(bindings)...);
 }
+
+
+///////////////////////////////////////////////////////////////////////
+// test entrypoint
 
 void constexpr_str_test()
 {
