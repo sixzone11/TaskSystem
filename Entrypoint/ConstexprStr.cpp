@@ -27,6 +27,16 @@ struct basic_fixed_string
 	CharT m_data[N];
 };
 
+template <typename CharT>
+struct basic_fixed_string<CharT, 0>
+{
+	constexpr basic_fixed_string(nullptr_t) {};
+	auto operator<=>(const basic_fixed_string&) const = default;
+};
+
+constexpr basic_fixed_string<char, 0> null_fixed_string{ nullptr };
+constexpr basic_fixed_string<wchar_t, 0> null_fixed_wstring{ nullptr };
+
 struct IResource {};
 struct ITexture : public IResource {};
 struct IBuffer : public IResource {};
@@ -63,17 +73,32 @@ struct Binding
 	std::tuple<Args...> _args;
 };
 
-template<basic_fixed_string binding_name>
-auto Bind(ITexture& texture)
-{ return Binding<binding_name, ITexture>(texture); }
+template<typename ResourceT, typename... Args>
+struct Binding<null_fixed_string, ResourceT, Args...>
+{
+	Binding(const std::string& bindingName, ResourceT& resource, Args&&... args)
+		: _bindingName(bindingName)
+		, _resource(resource)
+		, _args(std::forward<Args>(args)...)
+	{
+	}
+
+	const std::string& _bindingName;
+	ResourceT& _resource;
+	std::tuple<Args...> _args;
+};
 
 template<basic_fixed_string binding_name>
-auto Bind(std::vector<ITexture*>& textures)
-{ return Binding<binding_name, std::vector<ITexture*>>(textures); }
+auto Bind(ITexture& texture) { return Binding<binding_name, ITexture>(texture); }
+auto Bind(const std::string& bindingName, ITexture& texture) { return Binding<null_fixed_string, ITexture>(bindingName, texture); }
 
 template<basic_fixed_string binding_name>
-auto Bind(IBuffer& buffer)
-{ return Binding<binding_name, IBuffer>(buffer); }
+auto Bind(std::vector<ITexture*>& textures) { return Binding<binding_name, std::vector<ITexture*>>(textures); }
+auto Bind(const std::string& bindingName, std::vector<ITexture*>& textures) { return Binding<null_fixed_string, std::vector<ITexture*>>(bindingName, textures); }
+
+template<basic_fixed_string binding_name>
+auto Bind(IBuffer& buffer) { return Binding<binding_name, IBuffer>(buffer); }
+auto Bind(const std::string& bindingName, IBuffer& buffer) { return Binding<null_fixed_string, IBuffer>(bindingName, buffer); }
 
 template<typename... BindingTs>
 struct BindingBlock
@@ -88,6 +113,24 @@ auto BindIf(const bool condition, BindingTs&&... bindings)
 	return BindingBlock<BindingTs...>{ {std::forward<BindingTs>(bindings)...}, condition };
 }
 
+template<size_t Index, typename BindingT, typename... BindingTs>
+auto&& getBinding(BindingT&& binding, BindingTs&&... bindings)
+{
+	if constexpr (Index == 0)
+		return std::forward<BindingT>(binding);
+	else
+		return getBinding<Index - 1>(std::forward<BindingTs>(bindings) ...);
+}
+
+template<size_t Index, typename... BindingInBlockTs, typename... BindingTs>
+auto&& getBinding(BindingBlock<BindingInBlockTs...>&& binding, BindingTs&&... bindings)
+{
+	if constexpr (Index < sizeof...(BindingInBlockTs))
+		return getBinding<Index>(std::get<Index>(std::forward<std::tuple<BindingInBlockTs...>>(binding._bindings)));
+	else
+		return getBinding<Index - sizeof...(BindingInBlockTs)>(std::forward<BindingTs>(bindings) ...);
+}
+
 template<typename T>
 struct BindingMeta;
 
@@ -99,8 +142,22 @@ struct BindingMeta<Binding<binding_name, ResourceT, Args...>>
 
 	static constexpr size_t _count = 1;
 	static constexpr bool _isBlock = false;
+	static constexpr bool _isVariableStringBinding = false;
 
 	static uint32_t getBindingKey() { return ::getBindingKey(binding_name.m_data);}
+};
+
+template<typename ResourceT, typename... Args>
+struct BindingMeta<Binding<null_fixed_string, ResourceT, Args...>>
+{
+	using FlattenTupleT = std::tuple<Binding<null_fixed_string, ResourceT, Args...>>;
+	constexpr static const std::tuple<size_t> _offsets{ 0 };
+
+	static constexpr size_t _count = 1;
+	static constexpr bool _isBlock = false;
+	static constexpr bool _isVariableStringBinding = true;
+
+	static uint32_t getBindingKey() { return uint32_t(-1); }
 };
 
 template<typename... BindingTsInBlock>
@@ -145,6 +202,7 @@ struct BindingMeta<BindingBlock<BindingTs...>>
 
 	static constexpr size_t _count = (BindingMeta<BindingTs>::_count + ...);
 	static constexpr bool _isBlock = true;
+	static constexpr bool _isVariableStringBinding = (BindingMeta<BindingTs>::_isVariableStringBinding || ...);
 };
 
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
@@ -197,6 +255,23 @@ void bindResourceInternal(uint32_t bindingKeys[], BindingBlock<BindingTs...>&& b
 	} (bindingKeys, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTupleT>(bindingBlock._bindings));
 }
 
+template<size_t Index, bool IsVariableStringBinding>
+struct RemapBindingKey
+{
+	template<typename BindingT>
+	RemapBindingKey(uint32_t bindingKeys[], BindingT&& binding) {};
+};
+
+template<size_t Index>
+struct RemapBindingKey<Index, true>
+{
+	template<typename BindingT>
+	RemapBindingKey(uint32_t bindingKeys[], BindingT&& binding)
+	{
+		bindingKeys[Index] = ::getBindingKey(binding._bindingName);
+	};
+};
+
 template<typename... BindingTs>
 void bindResources(BindingTs&&... bindings)
 {
@@ -212,6 +287,17 @@ void bindResources(BindingTs&&... bindings)
 	static LocalBinder localBinder = [] <std::size_t... TupleIndexPack> (std::index_sequence<TupleIndexPack...>) {
 		return LocalBinder{ { BindingMeta<std::tuple_element_t<TupleIndexPack, FlattenTupleT>>::getBindingKey()..., } };
 	} (std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>());
+
+	if constexpr (BindingMetaT::_isVariableStringBinding)
+	{
+		[] <std::size_t... TupleIndexPack, typename...  BindingInnerTs> (LocalBinder& localBinder, std::index_sequence<TupleIndexPack...>, BindingInnerTs&&... bindings) {
+			auto internalCall = [&] <std::size_t TupleIndex> () {
+				RemapBindingKey<TupleIndex, BindingMeta<std::tuple_element_t<TupleIndex, FlattenTupleT>>::_isVariableStringBinding>(
+					localBinder._bindingKeys, getBinding<TupleIndex>(std::forward<BindingInnerTs>(bindings)...) );
+			};
+			(internalCall.template operator()<TupleIndexPack>(), ...);
+		} (localBinder, std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>(), std::forward<BindingTs>(bindings)...);
+	}
 
 	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::integer_sequence<size_t, IndexPack...>, BindingTs&&... bindings) {
 		([&] {
@@ -254,6 +340,20 @@ void constexpr_str_test()
 		Bind<"g_texA">(tex1),
 		Bind<"g_texB">(buf2),
 		Bind<"g_texC">(buf3));
+
+	std::string testName1 = "s_tex1";
+	bindResources( // New combination in both Literals: <"g_texA", "g_texB", "g_texC", null_fixed_string> and ResourceT: <T, B, B, T>
+		Bind<"g_texA">(tex1),
+		Bind<"g_texB">(buf2),
+		Bind<"g_texC">(buf3),
+		Bind(testName1, tex1));
+
+	std::string testName2 = "s_tex2";
+	bindResources( // Same as above but variable string binding name is different.
+		Bind<"g_texA">(tex1),
+		Bind<"g_texB">(buf2),
+		Bind<"g_texC">(buf3),
+		Bind(testName2, tex1));
 
 	bindResources( // New combination Literals: <"g_texA", "g_bufA"> and ResourceT: <T, B>
 		Bind<"g_texA">(tex1),
@@ -313,6 +413,37 @@ void constexpr_str_test()
 				BindIf(true,
 					Bind<"g_bufB">(buf2),
 					Bind<"g_bufC">(buf3)
+				),
+				Bind<"g_bufC">(buf3)
+			)
+		),
+		BindIf(true,
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texB">(tex2),
+			Bind<"g_texC">(tex3)
+		));
+
+	bindResources( // New complex by "g_buf[B|C]_____________________________WHAT_THE_HELL"
+		Bind<"g_texA">(tex1),
+		Bind<"g_bufA">(buf1),
+		BindIf(true,
+			Bind<"g_bufB">(buf2),
+			Bind<"g_bufC">(buf3),
+			BindIf(true,
+				Bind<"g_bufB">(buf2),
+				BindIf(false,
+					Bind<"g_bufB_____________________________WHAT_THE_HELL">(buf2),
+					Bind<"g_bufC_____________________________WHAT_THE_HELL">(buf3)
 				),
 				Bind<"g_bufC">(buf3)
 			)
