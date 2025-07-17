@@ -38,6 +38,18 @@ void bindBuffer(uint32_t bindingKey, ITexture* texture) {}
 std::unordered_map<std::string, uint32_t> global_string_map;
 uint32_t global_accum[3][256] = {};
 
+uint32_t getBindingKey(const std::string& bindingName)
+{
+	auto result = global_string_map.insert({ bindingName, uint32_t(-1) });
+	if (result.second == true)
+	{
+		auto& resultPair = result.first;
+		resultPair->second = uint32_t(global_string_map.size() - 1);
+	}
+
+	return result.first->second;
+};
+
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
 struct Binding
 {
@@ -88,17 +100,7 @@ struct BindingMeta<Binding<binding_name, ResourceT, Args...>>
 	static constexpr size_t _count = 1;
 	static constexpr bool _isBlock = false;
 
-	static uint32_t getBindingKey()
-	{
-		auto result = global_string_map.insert({ binding_name.m_data, uint32_t(-1) });
-		if (result.second == true)
-		{
-			auto& resultPair = result.first;
-			resultPair->second = uint32_t(global_string_map.size() - 1);
-		}
-
-		return result.first->second;
-	}
+	static uint32_t getBindingKey() { return ::getBindingKey(binding_name.m_data);}
 };
 
 template<typename... BindingTsInBlock>
