@@ -195,31 +195,6 @@ void bindResourceInternal(uint32_t bindingKeys[], BindingBlock<BindingTs...>&& b
 	} (bindingKeys, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTupleT>(bindingBlock._bindings));
 }
 
-template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
-uint32_t getBindingKey(Binding<binding_name, ResourceT, Args...>& /*binding*/)
-{
-	auto result = global_string_map.insert({ binding_name.m_data, uint32_t(-1) });
-	if (result.second == true)
-	{
-		auto& resultPair = result.first;
-		resultPair->second = uint32_t(global_string_map.size() - 1);
-	}
-
-	return result.first->second;
-};
-
-template<typename... BindingTs>
-std::initializer_list<uint32_t> getBindingKey(BindingBlock<BindingTs...>& bindingBlock )
-{
-	using BindingTuple = decltype(BindingBlock<BindingTs...>::_bindings);
-	constexpr size_t NumBindingsInBlock = std::tuple_size_v<BindingTuple>;
-	
-	return [] <std::size_t... IndexPack> (BindingBlock<BindingTs...>& bindingBlock, std::index_sequence<IndexPack...>)
-	{
-		return { getBindingKey(std::get<IndexPack>(bindingBlock._bindings))..., };
-	}( bindingBlock, std::make_index_sequence<NumBindingsInBlock>() );
-};
-
 template<typename... BindingTs>
 void bindResources(BindingTs&&... bindings)
 {
