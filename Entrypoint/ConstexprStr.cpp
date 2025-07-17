@@ -311,7 +311,7 @@ void bindResources(BindingTs&&... bindings)
 		uint32_t _bindingKeys[NumBindings];
 	};
 
-	static LocalBinder localBinder = [] <std::size_t... TupleIndexPack> (std::index_sequence<TupleIndexPack...>) {
+	static LocalBinder sLocalBinder = [] <std::size_t... TupleIndexPack> (std::index_sequence<TupleIndexPack...>) {
 		return LocalBinder{ { BindingMeta<std::tuple_element_t<TupleIndexPack, FlattenTupleT>>::getBindingKey()..., } };
 	} (std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>());
 
@@ -323,7 +323,7 @@ void bindResources(BindingTs&&... bindings)
 					localBinder._bindingKeys, getBinding<TupleIndex>(std::forward<BindingInnerTs>(bindings)...) );
 			};
 			(internalCall.template operator()<TupleIndexPack>(), ...);
-		} (localBinder, std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>(), std::forward<BindingTs>(bindings)...);
+		} (sLocalBinder, std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>(), std::forward<BindingTs>(bindings)...);
 	}
 
 	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::integer_sequence<size_t, IndexPack...>, BindingTs&&... bindings) {
@@ -333,7 +333,7 @@ void bindResources(BindingTs&&... bindings)
 			else
 				bindResourceInternal(localBinder._bindingKeys[std::get<IndexPack>(BindingMetaT::_offsetsInternal)], std::forward<BindingTs>(bindings));
 			} (), ...);
-	} (localBinder, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTs>(bindings)...);
+	} (sLocalBinder, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTs>(bindings)...);
 }
 
 
