@@ -141,7 +141,10 @@ using tuple_distinct_t = typename tuple_distinct<TupleToDistinct>::type;
 // printTupleElement
 
 template<typename T>
-void printTupleElement(const T& t);
+void printTupleElement(const T& t)
+{
+	std::cout << "(" << t << ")\n";
+}
 
 template<class Tuple, std::size_t N>
 struct TuplePrinter
