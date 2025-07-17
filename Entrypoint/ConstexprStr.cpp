@@ -56,6 +56,37 @@ void bindTexture(uint32_t bindingKey, ITexture* texture) {}
 void bindTexture(uint32_t bindingKey, std::vector<ITexture*>& textures) {}
 void bindBuffer(uint32_t bindingKey, ITexture* texture) {}
 
+struct ShaderResource
+{
+	uint32_t _bindingInformationA = 0;
+	uint32_t _bindingInformationB = 0;
+	uint32_t _bindingInformationC = 0;
+	uint32_t _bindingInformationD = 0;
+};
+
+struct ShaderResourceBindingMap
+{
+	std::unordered_map<std::string, ShaderResource>		_shaderResourceMap;
+};
+
+struct RenderResourceViewBindingHandle {
+	bool		_isFailed;
+	uint32_t	_offset;
+	void*		_shaderResource;
+};
+
+struct AutoBindingContext
+{
+	struct AutoBindingIdentifier
+	{
+		const ShaderResourceBindingMap*					_shaderResourceBindingMap = nullptr;
+		std::vector<RenderResourceViewBindingHandle>	_bindingHandles;
+		uint32_t										_index = uint32_t(-1);
+	};
+
+	std::vector<AutoBindingIdentifier>					_autoBindingIdentifiers;
+};
+
 
 ///////////////////////////////////////////////////////////////////////
 // global_string_map
@@ -299,8 +330,27 @@ struct RemapBindingKey<Index, true>
 	};
 };
 
+struct AutoBindingDescription
+{
+	std::vector<RenderResourceViewBindingHandle>* _bindingHandles = nullptr;
+	uint32_t _index = uint32_t(-1);
+};
+
+static AutoBindingDescription getCurrentAutoBindingDescription(AutoBindingContext& autoBindingContext, const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap)
+{
+	for (AutoBindingContext::AutoBindingIdentifier& autoBindingIdentifier : autoBindingContext._autoBindingIdentifiers)
+	{
+		if (autoBindingIdentifier._shaderResourceBindingMap == &shaderResourceBindingMap)
+			return AutoBindingDescription{ &autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index };
+	}
+
+	autoBindingContext._autoBindingIdentifiers.push_back({ &shaderResourceBindingMap, std::vector<RenderResourceViewBindingHandle>(numBindingHandles), uint32_t(autoBindingContext._autoBindingIdentifiers.size()) });
+	AutoBindingContext::AutoBindingIdentifier& autoBindingIdentifier = autoBindingContext._autoBindingIdentifiers.back();
+	return AutoBindingDescription{ &autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index };
+}
+
 template<typename... BindingTs>
-void bindResources(BindingTs&&... bindings)
+void bindResources(const ShaderResourceBindingMap& shaderResourceBindingMap, BindingTs&&... bindings)
 {
 	using BindingMetaT = BindingMeta<BindingBlock<BindingTs...>>;
 	constexpr size_t NumBindings = BindingMetaT::_count;
@@ -325,6 +375,9 @@ void bindResources(BindingTs&&... bindings)
 			(internalCall.template operator()<TupleIndexPack>(), ...);
 		} (sLocalBinder, std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>(), std::forward<BindingTs>(bindings)...);
 	}
+
+	static thread_local AutoBindingContext tlsAutoBindingContext;
+	AutoBindingDescription autoBindingDescription = getCurrentAutoBindingDescription(tlsAutoBindingContext, NumBindings, sLocalBinder._bindingKeys, shaderResourceBindingMap);
 
 	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::integer_sequence<size_t, IndexPack...>, BindingTs&&... bindings) {
 		([&] {
@@ -351,42 +404,74 @@ void constexpr_str_test()
 
 	std::vector<ITexture*> textures{ &tex1, &tex2, &tex3 };
 
+	ShaderResourceBindingMap bindingMapA {
+		{
+			{"g_texA", {}},
+			{"g_texB", {}},
+			{"g_texC", {}},
+		}
+	};
+
+	ShaderResourceBindingMap bindingMapB{
+		{
+			{"g_bufA", {}},
+			{"g_bufB", {}},
+			{"g_bufC", {}},
+		}
+	};
+
+	ShaderResourceBindingMap bindingMapC{
+		{
+			{"g_texA", {}},
+			{"g_texB", {}},
+			{"g_bufC", {}},
+		}
+	};
+
+	ShaderResourceBindingMap bindingMapD{
+		{
+			{"g_texA", {}},
+			{"g_bufB", {}},
+			{"s_tex2", {}},
+		}
+	};
+
 	uint32_t count = rand() * rand() % 50;
 	printf("count: %d\n", count);
 	for (uint32_t i = 0; i < count; ++i)
 	{
-		bindResources( // New combination
+		bindResources(bindingMapA, // New combination
 			Bind<"g_texA">(tex1),
 			Bind<"g_texB">(tex2),
 			Bind<"g_texC">(tex3));
 	}
 
-	bindResources( // Same as above in both Literals: <"g_texA", "g_texB", "g_texC"> and ResourceT: <T, T, T>
+	bindResources(bindingMapA, // Same as above in both Literals: <"g_texA", "g_texB", "g_texC"> and ResourceT: <T, T, T>
 		Bind<"g_texA">(tex3),
 		Bind<"g_texB">(tex2),
 		Bind<"g_texC">(tex1));
 
 
-	bindResources( // New combination in ResourceT: <T, B, B>
+	bindResources(bindingMapA, // New combination in ResourceT: <T, B, B>
 		Bind<"g_texA">(tex1),
 		Bind<"g_texB">(buf2),
 		Bind<"g_texC">(buf3));
 
 	std::string testName1 = "s_tex1";
-	bindResources( // New combination in both Literals: <"g_texA", "g_texB", "g_texC", null_fixed_string> and ResourceT: <T, B, B, T>
+	bindResources(bindingMapA, // New combination in both Literals: <"g_texA", "g_texB", "g_texC", null_fixed_string> and ResourceT: <T, B, B, T>
 		Bind<"g_texA">(tex1),
 		Bind<"g_texB">(buf2),
 		Bind<"g_texC">(buf3),
 		Bind(testName1, tex1));
 
 	std::string testName2 = "s_tex2";
-	bindResources( // Same as above but variable string binding name is different.
+	bindResources(bindingMapA, // Same as above but variable string binding name is different.
 		Bind<"g_texA">(tex1),
 		Bind<"g_texB">(buf2),
 		Bind<"g_texC">(buf3),
 		Bind(testName2, tex1));
 
-	bindResources( // New combination Literals: <"g_texA", "g_bufA"> and ResourceT: <T, B>
+	bindResources(bindingMapA, // New combination Literals: <"g_texA", "g_bufA"> and ResourceT: <T, B>
 		Bind<"g_texA">(tex1),
 		Bind<"g_bufA">(buf1),
 		BindIf(true,
@@ -394,7 +479,7 @@ void constexpr_str_test()
 			Bind<"g_bufC">(buf3)
 			));
 
-	bindResources( // Same as above but only difference is condition=false.
+	bindResources(bindingMapA, // Same as above but only difference is condition=false.
 		Bind<"g_texA">(tex1),
 		Bind<"g_bufA">(buf1),
 		BindIf(false,
@@ -402,7 +487,7 @@ void constexpr_str_test()
 			Bind<"g_bufC">(buf3)
 		));
 
-	bindResources( // Complex case
+	bindResources(bindingMapA, // Complex case
 		Bind<"g_texA">(tex1),
 		Bind<"g_bufA">(buf1),
 		BindIf(true,
@@ -433,7 +518,7 @@ void constexpr_str_test()
 			Bind<"g_texC">(tex3)
 		));
 
-	bindResources( // Same as above but condition flipped.
+	bindResources(bindingMapA, // Same as above but condition flipped.
 		Bind<"g_texA">(tex1),
 		Bind<"g_bufA">(buf1),
 		BindIf(false,
@@ -464,7 +549,7 @@ void constexpr_str_test()
 			Bind<"g_texC">(tex3)
 		));
 
-	bindResources( // New complex by "g_buf[B|C]_____________________________WHAT_THE_HELL"
+	bindResources(bindingMapA, // New complex by "g_buf[B|C]_____________________________WHAT_THE_HELL"
 		Bind<"g_texA">(tex1),
 		Bind<"g_bufA">(buf1),
 		BindIf(true,
@@ -495,7 +580,7 @@ void constexpr_str_test()
 			Bind<"g_texC">(tex3)
 		));
 
-	bindResources( // New combination Literals: <"g_texA", "g_texArray", "g_bufA"> and ResourceT: <T, v<T>, B>
+	bindResources(bindingMapA, // New combination Literals: <"g_texA", "g_texArray", "g_bufA"> and ResourceT: <T, v<T>, B>
 		Bind<"g_texA">(tex1),
 		Bind<"g_texArray">(textures),
 		Bind<"g_bufA">(buf1));
