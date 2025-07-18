@@ -337,10 +337,10 @@ struct AutoBindingDescription
 	std::vector<RenderResourceViewBindingHandle>& _bindingHandles;
 	uint32_t _index = uint32_t(-1);
 
-	void fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap);
+	AutoBindingDescription& fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap);
 };
 
-void AutoBindingDescription::fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap)
+AutoBindingDescription& AutoBindingDescription::fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap)
 {
 	for (uint32_t i = 0; i < numBindingHandles; ++i)
 	{
@@ -357,9 +357,11 @@ void AutoBindingDescription::fillBindingHandles(const size_t numBindingHandles, 
 		bindingHandle._shaderResource = &findResult->second;
 		bindingHandle._offset = bindingKeys[i]; // Todo
 	}
+
+	return *this;
 }
 
-static AutoBindingDescription getCurrentAutoBindingDescription(AutoBindingContext& autoBindingContext, const size_t numBindingHandles, const ShaderResourceBindingMap& shaderResourceBindingMap)
+static AutoBindingDescription getCurrentAutoBindingDescription(AutoBindingContext& autoBindingContext, const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap)
 {
 	for (AutoBindingContext::AutoBindingIdentifier& autoBindingIdentifier : autoBindingContext._autoBindingIdentifiers)
 	{
@@ -369,7 +371,7 @@ static AutoBindingDescription getCurrentAutoBindingDescription(AutoBindingContex
 
 	autoBindingContext._autoBindingIdentifiers.push_back({ &shaderResourceBindingMap, std::vector<RenderResourceViewBindingHandle>(numBindingHandles), uint32_t(autoBindingContext._autoBindingIdentifiers.size()) });
 	AutoBindingContext::AutoBindingIdentifier& autoBindingIdentifier = autoBindingContext._autoBindingIdentifiers.back();
-	return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index };
+	return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index }.fillBindingHandles(numBindingHandles, bindingKeys, shaderResourceBindingMap);
 }
 
 template<typename... BindingTs>
@@ -388,6 +390,9 @@ void bindResources(const ShaderResourceBindingMap& shaderResourceBindingMap, Bin
 		return LocalBinder{ { BindingMeta<std::tuple_element_t<TupleIndexPack, FlattenTupleT>>::getBindingKey()..., } };
 	} (std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>());
 
+	static thread_local AutoBindingContext tlsAutoBindingContext;
+	AutoBindingDescription autoBindingDescription = getCurrentAutoBindingDescription(tlsAutoBindingContext, NumBindings, sLocalBinder._bindingKeys, shaderResourceBindingMap);
+
 	if constexpr (BindingMetaT::_isVariableStringBinding)
 	{
 		[] <std::size_t... TupleIndexPack, typename...  BindingInnerTs> (LocalBinder& localBinder, std::index_sequence<TupleIndexPack...>, BindingInnerTs&&... bindings) {
@@ -398,10 +403,6 @@ void bindResources(const ShaderResourceBindingMap& shaderResourceBindingMap, Bin
 			(internalCall.template operator()<TupleIndexPack>(), ...);
 		} (sLocalBinder, std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>(), std::forward<BindingTs>(bindings)...);
 	}
-
-	static thread_local AutoBindingContext tlsAutoBindingContext;
-	AutoBindingDescription autoBindingDescription = getCurrentAutoBindingDescription(tlsAutoBindingContext, NumBindings, shaderResourceBindingMap);
-	autoBindingDescription.fillBindingHandles(NumBindings, sLocalBinder._bindingKeys, shaderResourceBindingMap);
 
 	[&autoBindingDescription] <std::size_t... IndexPack, typename... BindingInnerTs> (std::integer_sequence<size_t, IndexPack...>, BindingInnerTs&&... bindings) {
 		([&] {
