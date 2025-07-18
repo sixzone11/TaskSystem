@@ -70,8 +70,8 @@ struct ShaderResourceBindingMap
 };
 
 struct RenderResourceViewBindingHandle {
-	bool												_isFailed = false;
 	uint32_t											_offset = uint32_t(-1);
+	uint32_t											_variableBindingKey = uint32_t(-1);
 	const ShaderResource*								_shaderResource;
 };
 
@@ -81,6 +81,7 @@ struct AutoBindingContext
 	{
 		const ShaderResourceBindingMap*					_shaderResourceBindingMap = nullptr;
 		std::vector<RenderResourceViewBindingHandle>	_bindingHandles;
+		std::vector<RenderResourceViewBindingHandle>	_bindingHandlesForVariables;
 		uint32_t										_index = uint32_t(-1);
 	};
 
@@ -350,7 +351,6 @@ AutoBindingDescription& AutoBindingDescription::fillBindingHandles(const size_t 
 		if (bindingKeys[i] == uint32_t(-1) ||
 			(findResult = shaderResourceBindingMap._shaderResourceMap.find(bindingKeys[i])) == shaderResourceBindingMap._shaderResourceMap.end())
 		{
-			bindingHandle._isFailed = true;
 			continue;
 		}
 
@@ -369,7 +369,7 @@ static AutoBindingDescription getCurrentAutoBindingDescription(AutoBindingContex
 			return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index };
 	}
 
-	autoBindingContext._autoBindingIdentifiers.push_back({ &shaderResourceBindingMap, std::vector<RenderResourceViewBindingHandle>(numBindingHandles), uint32_t(autoBindingContext._autoBindingIdentifiers.size()) });
+	autoBindingContext._autoBindingIdentifiers.push_back({ &shaderResourceBindingMap, std::vector<RenderResourceViewBindingHandle>(numBindingHandles), {}, uint32_t(autoBindingContext._autoBindingIdentifiers.size()) });
 	AutoBindingContext::AutoBindingIdentifier& autoBindingIdentifier = autoBindingContext._autoBindingIdentifiers.back();
 	return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index }.fillBindingHandles(numBindingHandles, bindingKeys, shaderResourceBindingMap);
 }
