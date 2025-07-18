@@ -28,7 +28,7 @@ struct Derived : Base	{ virtual ~Derived() {} };
 struct Component
 {
 	REGISTER_THREAD_SATEFY(Component);
-	//SET_AS_OWNER_OF_TYPES();
+	SET_AS_OWNER_OF_TYPES();
 };
 
 struct Object
