@@ -66,13 +66,13 @@ struct ShaderResource
 
 struct ShaderResourceBindingMap
 {
-	std::unordered_map<std::string, ShaderResource>		_shaderResourceMap;
+	std::unordered_map<uint32_t, ShaderResource>		_shaderResourceMap;
 };
 
 struct RenderResourceViewBindingHandle {
-	bool		_isFailed;
-	uint32_t	_offset;
-	void*		_shaderResource;
+	bool												_isFailed = false;
+	uint32_t											_offset = uint32_t(-1);
+	const ShaderResource*								_shaderResource;
 };
 
 struct AutoBindingContext
@@ -406,33 +406,33 @@ void constexpr_str_test()
 
 	ShaderResourceBindingMap bindingMapA {
 		{
-			{"g_texA", {}},
-			{"g_texB", {}},
-			{"g_texC", {}},
+			{::getBindingKey("g_texA"), {}},
+			{::getBindingKey("g_texB"), {}},
+			{::getBindingKey("g_texC"), {}},
 		}
 	};
 
 	ShaderResourceBindingMap bindingMapB{
 		{
-			{"g_bufA", {}},
-			{"g_bufB", {}},
-			{"g_bufC", {}},
+			{::getBindingKey("g_bufA"), {}},
+			{::getBindingKey("g_bufB"), {}},
+			{::getBindingKey("g_bufC"), {}},
 		}
 	};
 
 	ShaderResourceBindingMap bindingMapC{
 		{
-			{"g_texA", {}},
-			{"g_texB", {}},
-			{"g_bufC", {}},
+			{::getBindingKey("g_texA"), {}},
+			{::getBindingKey("g_texB"), {}},
+			{::getBindingKey("g_bufC"), {}},
 		}
 	};
 
 	ShaderResourceBindingMap bindingMapD{
 		{
-			{"g_texA", {}},
-			{"g_bufB", {}},
-			{"s_tex2", {}},
+			{::getBindingKey("g_texA"), {}},
+			{::getBindingKey("g_bufB"), {}},
+			{::getBindingKey("s_tex2"), {}},
 		}
 	};
 
