@@ -48,9 +48,25 @@ constexpr basic_fixed_string<wchar_t, 0> null_fixed_wstring{ nullptr };
 ///////////////////////////////////////////////////////////////////////
 // Sample RHI-related and commands
 
-struct IResource {};
-struct ITexture : public IResource {};
-struct IBuffer : public IResource {};
+struct IResource
+{
+	uint32_t _type;
+	uint32_t _usage;
+	uint32_t _size;
+	uint32_t _format;
+};
+
+struct ITexture : public IResource
+{
+	uint32_t _numMips;
+	uint32_t _numArrays;
+	uint32_t _numDepth;
+};
+
+struct IBuffer : public IResource
+{
+	uint32_t _stride;
+};
 
 void bindTexture(uint32_t bindingKey, ITexture* texture) {}
 void bindTexture(uint32_t bindingKey, std::vector<ITexture*>& textures) {}
@@ -140,8 +156,13 @@ struct Binding<null_fixed_string, ResourceT, Args...>
 };
 
 template<basic_fixed_string binding_name>
-auto Bind(ITexture& texture) { return Binding<binding_name, ITexture>(texture); }
-auto Bind(const uint32_t& bindingKey, ITexture& texture) { return Binding<null_fixed_string, ITexture>(bindingKey, texture); }
+auto Bind(ITexture& texture, uint32_t viewIndex = 0, bool nullBindIfInvalid = false) { return Binding<binding_name, ITexture, uint32_t, bool>(texture, std::forward<uint32_t>(viewIndex), std::forward<bool>(nullBindIfInvalid)); }
+auto Bind(const uint32_t& bindingKey, ITexture& texture, uint32_t viewIndex = 0, bool nullBindIfInvalid = false) { return Binding<null_fixed_string, ITexture, uint32_t, bool>(bindingKey, texture, std::forward<uint32_t>(viewIndex), std::forward<bool>(nullBindIfInvalid)); }
+
+void setTexture(RenderResourceViewBindingHandle& bindingHandle, ITexture& texture, uint32_t viewIndex, bool nullBindIfInvalid)
+{
+	std::cout << "Bind texture: " << texture._type << " size: " << texture._size << " viewIndex: " << viewIndex << std::endl;
+}
 
 template<basic_fixed_string binding_name>
 auto Bind(std::vector<ITexture*>& textures) { return Binding<binding_name, std::vector<ITexture*>>(textures); }
@@ -277,6 +298,9 @@ void bindResourceInternal(RenderResourceViewBindingHandle& bindingHandle, Bindin
 	// call a bind function for a specific type of a resource, passed by arg
 	if (bindingHandle._offset == uint32_t(-1)) return;
 	global_accum[0][bindingHandle._offset]++;
+	[&] <std::size_t... IndexPack> (std::index_sequence<IndexPack...>) {
+		setTexture(bindingHandle, static_cast<ITexture&>(binding._resource), std::get<IndexPack>(std::forward<std::tuple<Args...>>(binding._args)) ... );
+	}(std::make_index_sequence<sizeof...(Args)>());
 }
 
 template<basic_fixed_string binding_name, typename... Args>
@@ -443,12 +467,12 @@ void bindResources(const ShaderResourceBindingMap& shaderResourceBindingMap, Bin
 
 void constexpr_str_test()
 {
-	ITexture tex1;
-	ITexture tex2;
-	ITexture tex3;
-	IBuffer buf1;
-	IBuffer buf2;
-	IBuffer buf3;
+	ITexture tex1{{1, 2, 1 << 18, 3},  8, 1, 1};
+	ITexture tex2{{1, 3, 1 << 19, 4},  9, 1, 3};
+	ITexture tex3{{1, 2, 1 << 20, 5}, 10, 4, 1};
+	IBuffer buf1{{2, 5,  8 << 20, 0},   256};
+	IBuffer buf2{{2, 6,  4 << 20, 0},  4096};
+	IBuffer buf3{{2, 7, 24 << 20, 0}, 65536};
 
 	std::vector<ITexture*> textures{ &tex1, &tex2, &tex3 };
 
@@ -497,15 +521,15 @@ void constexpr_str_test()
 	for (uint32_t i = 0; i < count; ++i)
 	{
 		bindResources(bindingMapA, // New combination
-			Bind<"g_texA">(tex1),
-			Bind<"g_texB">(tex2),
-			Bind<"g_texC">(tex3));
+			Bind<"g_texA">(tex1, 5),
+			Bind<"g_texB">(tex2, 4),
+			Bind<"g_texC">(tex3, 3));
 	}
 
 	bindResources(bindingMapA, // Same as above in both Literals: <"g_texA", "g_texB", "g_texC"> and ResourceT: <T, T, T>
-		Bind<"g_texA">(tex3),
-		Bind<"g_texB">(tex2),
-		Bind<"g_texC">(tex1));
+		Bind<"g_texA">(tex3, 0),
+		Bind<"g_texB">(tex2, 1),
+		Bind<"g_texC">(tex1, 2));
 
 
 	bindResources(bindingMapA, // New combination in ResourceT: <T, B, B>
