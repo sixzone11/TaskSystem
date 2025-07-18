@@ -264,53 +264,55 @@ struct BindingMeta<BindingBlock<BindingTs...>>
 // Binding Commands
 
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
-void bindResourceInternal(uint32_t bindingKey, Binding<binding_name, ResourceT, Args...>&& binding)
+void bindResourceInternal(RenderResourceViewBindingHandle& bindingKey, Binding<binding_name, ResourceT, Args...>&& binding)
 {
 	static_assert(false, "Not implemented for ResourceT");
 	// call a bind function for a specific type of a resource, passed by arg
 }
 
 template<basic_fixed_string binding_name, typename... Args>
-void bindResourceInternal(uint32_t bindingKey, Binding<binding_name, ITexture, Args...>&& binding)
+void bindResourceInternal(RenderResourceViewBindingHandle& bindingHandle, Binding<binding_name, ITexture, Args...>&& binding)
 {
 	// call a bind function for a specific type of a resource, passed by arg
-	global_accum[0][bindingKey]++;
+	if (bindingHandle._offset == uint32_t(-1)) return;
+	global_accum[0][bindingHandle._offset]++;
 }
 
 template<basic_fixed_string binding_name, typename... Args>
-void bindResourceInternal(uint32_t bindingKey, Binding<binding_name, std::vector<ITexture*>, Args...>&& binding)
+void bindResourceInternal(RenderResourceViewBindingHandle& bindingHandle, Binding<binding_name, std::vector<ITexture*>, Args...>&& binding)
 {
 	// call a bind function for a specific type of a resource, passed by arg
-	global_accum[1][bindingKey]++;
+	if (bindingHandle._offset == uint32_t(-1)) return;
+	global_accum[1][bindingHandle._offset]++;
 }
 
 template<basic_fixed_string binding_name, typename... Args>
-void bindResourceInternal(uint32_t bindingKey, Binding<binding_name, IBuffer, Args...>&& binding)
+void bindResourceInternal(RenderResourceViewBindingHandle& bindingHandle, Binding<binding_name, IBuffer, Args...>&& binding)
 {
 	// call a bind function for a specific type of a resource, passed by arg
-	global_accum[2][bindingKey]++;
+	if (bindingHandle._offset == uint32_t(-1)) return;
+	global_accum[2][bindingHandle._offset]++;
 }
 
 template<typename... BindingTs>
-void bindResourceInternal(uint32_t bindingKeys[], BindingBlock<BindingTs...>&& bindingBlock)
+void bindResourceInternal(RenderResourceViewBindingHandle bindingHandles[], BindingBlock<BindingTs...>&& bindingBlock)
 {
 	// call a bind function for a specific type of a resource, passed by arg
-
 	if (bindingBlock._condition == false)
 		return;
 
 	using BindingTupleT = std::tuple<BindingTs...>;
 
-	[] <std::size_t... IndexPack> (uint32_t bindingKeys[], std::index_sequence<IndexPack...>, BindingTupleT&& bindings) {
+	[&bindingHandles] <std::size_t... IndexPack> (std::index_sequence<IndexPack...>, BindingTupleT&& bindings) {
 		auto internalCall = [&] <std::size_t TupleIndex, typename BindingT> (BindingT && binding) {
 			if constexpr (BindingMeta<std::tuple_element_t<TupleIndex, BindingTupleT>>::_isBlock)
-				bindResourceInternal(bindingKeys + std::get<TupleIndex>(BindingMeta<BindingBlock<BindingTs...>>::_offsetsInternal), std::forward<BindingT>(binding));
+				bindResourceInternal(bindingHandles + std::get<TupleIndex>(BindingMeta<BindingBlock<BindingTs...>>::_offsetsInternal), std::forward<BindingT>(binding));
 			else
-				bindResourceInternal(bindingKeys[std::get<TupleIndex>(BindingMeta<BindingBlock<BindingTs...>>::_offsetsInternal)], std::forward<BindingT>(binding));
+				bindResourceInternal(bindingHandles[std::get<TupleIndex>(BindingMeta<BindingBlock<BindingTs...>>::_offsetsInternal)], std::forward<BindingT>(binding));
 		};
 
 		((internalCall.template operator()<IndexPack>(std::get<IndexPack>(std::forward<BindingTupleT>(bindings)))), ...);
-	} (bindingKeys, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTupleT>(bindingBlock._bindings));
+	} (std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTupleT>(bindingBlock._bindings));
 }
 
 template<size_t Index, bool IsVariableStringBinding>
@@ -332,21 +334,42 @@ struct RemapBindingKey<Index, true>
 
 struct AutoBindingDescription
 {
-	std::vector<RenderResourceViewBindingHandle>* _bindingHandles = nullptr;
+	std::vector<RenderResourceViewBindingHandle>& _bindingHandles;
 	uint32_t _index = uint32_t(-1);
+
+	void fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap);
 };
 
-static AutoBindingDescription getCurrentAutoBindingDescription(AutoBindingContext& autoBindingContext, const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap)
+void AutoBindingDescription::fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap)
+{
+	for (uint32_t i = 0; i < numBindingHandles; ++i)
+	{
+		decltype(shaderResourceBindingMap._shaderResourceMap.end()) findResult;
+
+		RenderResourceViewBindingHandle& bindingHandle = _bindingHandles[i];
+		if (bindingKeys[i] == uint32_t(-1) ||
+			(findResult = shaderResourceBindingMap._shaderResourceMap.find(bindingKeys[i])) == shaderResourceBindingMap._shaderResourceMap.end())
+		{
+			bindingHandle._isFailed = true;
+			continue;
+		}
+
+		bindingHandle._shaderResource = &findResult->second;
+		bindingHandle._offset = bindingKeys[i]; // Todo
+	}
+}
+
+static AutoBindingDescription getCurrentAutoBindingDescription(AutoBindingContext& autoBindingContext, const size_t numBindingHandles, const ShaderResourceBindingMap& shaderResourceBindingMap)
 {
 	for (AutoBindingContext::AutoBindingIdentifier& autoBindingIdentifier : autoBindingContext._autoBindingIdentifiers)
 	{
 		if (autoBindingIdentifier._shaderResourceBindingMap == &shaderResourceBindingMap)
-			return AutoBindingDescription{ &autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index };
+			return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index };
 	}
 
 	autoBindingContext._autoBindingIdentifiers.push_back({ &shaderResourceBindingMap, std::vector<RenderResourceViewBindingHandle>(numBindingHandles), uint32_t(autoBindingContext._autoBindingIdentifiers.size()) });
 	AutoBindingContext::AutoBindingIdentifier& autoBindingIdentifier = autoBindingContext._autoBindingIdentifiers.back();
-	return AutoBindingDescription{ &autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index };
+	return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index };
 }
 
 template<typename... BindingTs>
@@ -377,16 +400,17 @@ void bindResources(const ShaderResourceBindingMap& shaderResourceBindingMap, Bin
 	}
 
 	static thread_local AutoBindingContext tlsAutoBindingContext;
-	AutoBindingDescription autoBindingDescription = getCurrentAutoBindingDescription(tlsAutoBindingContext, NumBindings, sLocalBinder._bindingKeys, shaderResourceBindingMap);
+	AutoBindingDescription autoBindingDescription = getCurrentAutoBindingDescription(tlsAutoBindingContext, NumBindings, shaderResourceBindingMap);
+	autoBindingDescription.fillBindingHandles(NumBindings, sLocalBinder._bindingKeys, shaderResourceBindingMap);
 
-	[] <std::size_t... IndexPack, typename... BindingTs> (LocalBinder& localBinder, std::integer_sequence<size_t, IndexPack...>, BindingTs&&... bindings) {
+	[&autoBindingDescription] <std::size_t... IndexPack, typename... BindingInnerTs> (std::integer_sequence<size_t, IndexPack...>, BindingInnerTs&&... bindings) {
 		([&] {
-			if constexpr (BindingMeta<BindingTs>::_isBlock)
-				bindResourceInternal(localBinder._bindingKeys + std::get<IndexPack>(BindingMetaT::_offsetsInternal), std::forward<BindingTs>(bindings));
+			if constexpr (BindingMeta<BindingInnerTs>::_isBlock)
+				bindResourceInternal(autoBindingDescription._bindingHandles.data() + std::get<IndexPack>(BindingMetaT::_offsetsInternal), std::forward<BindingInnerTs>(bindings));
 			else
-				bindResourceInternal(localBinder._bindingKeys[std::get<IndexPack>(BindingMetaT::_offsetsInternal)], std::forward<BindingTs>(bindings));
+				bindResourceInternal(autoBindingDescription._bindingHandles[std::get<IndexPack>(BindingMetaT::_offsetsInternal)], std::forward<BindingInnerTs>(bindings));
 			} (), ...);
-	} (sLocalBinder, std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTs>(bindings)...);
+	} (std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTs>(bindings)...);
 }
 
 
