@@ -81,7 +81,7 @@ struct AutoBindingContext
 	{
 		const ShaderResourceBindingMap*					_shaderResourceBindingMap = nullptr;
 		std::vector<RenderResourceViewBindingHandle>	_bindingHandles;
-		std::vector<RenderResourceViewBindingHandle>	_bindingHandlesForVariables;
+		std::vector<RenderResourceViewBindingHandle>	_bindingHandlesForVariable;
 		uint32_t										_index = uint32_t(-1);
 	};
 
