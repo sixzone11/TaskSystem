@@ -319,6 +319,7 @@ void bindResourceInternal(RenderResourceViewBindingHandle bindingHandles[], Bind
 struct AutoBindingDescription
 {
 	std::vector<RenderResourceViewBindingHandle>& _bindingHandles;
+	std::vector<RenderResourceViewBindingHandle>& _bindingHandlesForVariable;
 	uint32_t _index = uint32_t(-1);
 
 	AutoBindingDescription& fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap);
@@ -328,16 +329,35 @@ template<size_t Index, bool IsVariableStringBinding>
 struct RemapBindingHandle
 {
 	template<typename BindingT>
-	RemapBindingHandle(uint32_t bindingKeys[], BindingT&& binding) {};
+	RemapBindingHandle(AutoBindingDescription& autoBindingDescription, const ShaderResourceBindingMap& shaderResourceBindingMap, const BindingT& binding) {};
 };
 
 template<size_t Index>
 struct RemapBindingHandle<Index, true>
 {
 	template<typename BindingT>
-	RemapBindingHandle(uint32_t bindingKeys[], BindingT&& binding)
+	RemapBindingHandle(AutoBindingDescription& autoBindingDescription, const ShaderResourceBindingMap& shaderResourceBindingMap, const BindingT& binding)
 	{
-		bindingKeys[Index] = binding._bindingKey;
+		auto& knownBindingHandles = autoBindingDescription._bindingHandlesForVariable;
+		auto found = std::find_if(knownBindingHandles.begin(), knownBindingHandles.end(),
+			[&binding](const auto& knownBindingHandle) { return knownBindingHandle._variableBindingKey == binding._bindingKey; });
+
+		if (found == knownBindingHandles.end())
+		{
+			knownBindingHandles.push_back({uint32_t(-1), binding._bindingKey, nullptr});
+			found = knownBindingHandles.begin() + knownBindingHandles.size() - 1;
+			
+			RenderResourceViewBindingHandle& bindingHandle = *found;
+
+			auto foundShaderResource = shaderResourceBindingMap._shaderResourceMap.find(binding._bindingKey);
+			if (foundShaderResource != shaderResourceBindingMap._shaderResourceMap.end())
+			{
+				bindingHandle._shaderResource = &foundShaderResource->second;
+				bindingHandle._offset = binding._bindingKey;
+			}
+		}
+
+		autoBindingDescription._bindingHandles[Index] = *found;
 	};
 };
 
@@ -345,16 +365,14 @@ AutoBindingDescription& AutoBindingDescription::fillBindingHandles(const size_t 
 {
 	for (uint32_t i = 0; i < numBindingHandles; ++i)
 	{
-		decltype(shaderResourceBindingMap._shaderResourceMap.end()) findResult;
+		decltype(shaderResourceBindingMap._shaderResourceMap.end()) foundShaderResource;
 
 		RenderResourceViewBindingHandle& bindingHandle = _bindingHandles[i];
 		if (bindingKeys[i] == uint32_t(-1) ||
-			(findResult = shaderResourceBindingMap._shaderResourceMap.find(bindingKeys[i])) == shaderResourceBindingMap._shaderResourceMap.end())
-		{
+			(foundShaderResource = shaderResourceBindingMap._shaderResourceMap.find(bindingKeys[i])) == shaderResourceBindingMap._shaderResourceMap.end())
 			continue;
-		}
 
-		bindingHandle._shaderResource = &findResult->second;
+		bindingHandle._shaderResource = &foundShaderResource->second;
 		bindingHandle._offset = bindingKeys[i]; // Todo
 	}
 
@@ -366,12 +384,17 @@ static AutoBindingDescription getCurrentAutoBindingDescription(AutoBindingContex
 	for (AutoBindingContext::AutoBindingIdentifier& autoBindingIdentifier : autoBindingContext._autoBindingIdentifiers)
 	{
 		if (autoBindingIdentifier._shaderResourceBindingMap == &shaderResourceBindingMap)
-			return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index };
+			return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._bindingHandlesForVariable, autoBindingIdentifier._index };
 	}
 
-	autoBindingContext._autoBindingIdentifiers.push_back({ &shaderResourceBindingMap, std::vector<RenderResourceViewBindingHandle>(numBindingHandles), {}, uint32_t(autoBindingContext._autoBindingIdentifiers.size()) });
+	autoBindingContext._autoBindingIdentifiers.push_back({
+		&shaderResourceBindingMap,
+		std::vector<RenderResourceViewBindingHandle>(numBindingHandles),
+		std::vector<RenderResourceViewBindingHandle>{},
+		uint32_t(autoBindingContext._autoBindingIdentifiers.size())
+		});
 	AutoBindingContext::AutoBindingIdentifier& autoBindingIdentifier = autoBindingContext._autoBindingIdentifiers.back();
-	return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._index }.fillBindingHandles(numBindingHandles, bindingKeys, shaderResourceBindingMap);
+	return AutoBindingDescription{ autoBindingIdentifier._bindingHandles, autoBindingIdentifier._bindingHandlesForVariable, autoBindingIdentifier._index }.fillBindingHandles(numBindingHandles, bindingKeys, shaderResourceBindingMap);
 }
 
 template<typename... BindingTs>
@@ -395,10 +418,10 @@ void bindResources(const ShaderResourceBindingMap& shaderResourceBindingMap, Bin
 
 	if constexpr (BindingMetaT::_isVariableStringBinding)
 	{
-		[&autoBindingDescription] <std::size_t... TupleIndexPack, typename...  BindingInnerTs> (LocalBinder& localBinder, std::index_sequence<TupleIndexPack...>, BindingInnerTs&&... bindings) {
+		[&autoBindingDescription, &shaderResourceBindingMap] <std::size_t... TupleIndexPack, typename...  BindingInnerTs> (LocalBinder& localBinder, std::index_sequence<TupleIndexPack...>, BindingInnerTs&&... bindings) {
 			auto internalCall = [&] <std::size_t TupleIndex> () {
 				RemapBindingHandle<TupleIndex, BindingMeta<std::tuple_element_t<TupleIndex, FlattenTupleT>>::_isVariableStringBinding>(
-					localBinder._bindingKeys, getBinding<TupleIndex>(std::forward<BindingInnerTs>(bindings)...) );
+					autoBindingDescription, shaderResourceBindingMap, getBinding<TupleIndex>(std::forward<BindingInnerTs>(bindings)...) );
 			};
 			(internalCall.template operator()<TupleIndexPack>(), ...);
 		} (sLocalBinder, std::make_index_sequence<std::tuple_size_v<FlattenTupleT>>(), std::forward<BindingTs>(bindings)...);
@@ -461,6 +484,14 @@ void constexpr_str_test()
 		}
 	};
 
+	ShaderResourceBindingMap bindingMapE{
+		{
+			{::getBindingKey("s_tex3"), {}},
+			{::getBindingKey("g_bufB"), {}},
+			{::getBindingKey("s_tex2"), {}},
+		}
+	};
+
 	uint32_t count = rand() * rand() % 50;
 	printf("count: %d\n", count);
 	for (uint32_t i = 0; i < count; ++i)
@@ -511,6 +542,30 @@ void constexpr_str_test()
 			Bind<"g_bufB">(buf2),
 			Bind<"g_bufC">(buf3)
 		));
+
+	// Multiple-time variable string binding and case
+	struct VariableBindingPair
+	{
+		uint32_t _bindingName;
+		ITexture* _resource;
+	} variableBindingPairs[] = {
+		{::getBindingKey("s_tex1"), &tex1},
+		{::getBindingKey("s_tex2"), &tex2},
+		{::getBindingKey("s_tex3"), &tex1}
+	};
+
+	ShaderResourceBindingMap* bindingMaps[3] = {
+		&bindingMapD,
+		&bindingMapA,
+		&bindingMapE,
+	};
+
+	for (uint32_t i = 0; i < 3; ++i) // for changing binding map
+	{
+		for(uint32_t j = 0; j < sizeof(variableBindingPairs) / sizeof(variableBindingPairs[0]); ++j) // for changing variable string binding
+			bindResources(*bindingMaps[i], // A single binding combination in both Literals: <null_fixed_string> and ResourceT: <T>
+				Bind(variableBindingPairs[j]._bindingName, *variableBindingPairs[j]._resource));
+	}
 
 	bindResources(bindingMapA, // Complex case
 		Bind<"g_texA">(tex1),
