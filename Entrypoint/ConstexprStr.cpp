@@ -316,6 +316,14 @@ void bindResourceInternal(RenderResourceViewBindingHandle bindingHandles[], Bind
 	} (std::make_index_sequence<sizeof...(BindingTs)>(), std::forward<BindingTupleT>(bindingBlock._bindings));
 }
 
+struct AutoBindingDescription
+{
+	std::vector<RenderResourceViewBindingHandle>& _bindingHandles;
+	uint32_t _index = uint32_t(-1);
+
+	AutoBindingDescription& fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap);
+};
+
 template<size_t Index, bool IsVariableStringBinding>
 struct RemapBindingHandle
 {
@@ -331,14 +339,6 @@ struct RemapBindingHandle<Index, true>
 	{
 		bindingKeys[Index] = binding._bindingKey;
 	};
-};
-
-struct AutoBindingDescription
-{
-	std::vector<RenderResourceViewBindingHandle>& _bindingHandles;
-	uint32_t _index = uint32_t(-1);
-
-	AutoBindingDescription& fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap);
 };
 
 AutoBindingDescription& AutoBindingDescription::fillBindingHandles(const size_t numBindingHandles, const uint32_t bindingKeys[], const ShaderResourceBindingMap& shaderResourceBindingMap)
