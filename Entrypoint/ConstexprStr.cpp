@@ -127,29 +127,29 @@ struct Binding
 template<typename ResourceT, typename... Args>
 struct Binding<null_fixed_string, ResourceT, Args...>
 {
-	Binding(const std::string& bindingName, ResourceT& resource, Args&&... args)
-		: _bindingName(bindingName)
+	Binding(const uint32_t& bindingKey, ResourceT& resource, Args&&... args)
+		: _bindingKey(bindingKey)
 		, _resource(resource)
 		, _args(std::forward<Args>(args)...)
 	{
 	}
 
-	const std::string& _bindingName;
+	const uint32_t& _bindingKey;
 	ResourceT& _resource;
 	std::tuple<Args...> _args;
 };
 
 template<basic_fixed_string binding_name>
 auto Bind(ITexture& texture) { return Binding<binding_name, ITexture>(texture); }
-auto Bind(const std::string& bindingName, ITexture& texture) { return Binding<null_fixed_string, ITexture>(bindingName, texture); }
+auto Bind(const uint32_t& bindingKey, ITexture& texture) { return Binding<null_fixed_string, ITexture>(bindingKey, texture); }
 
 template<basic_fixed_string binding_name>
 auto Bind(std::vector<ITexture*>& textures) { return Binding<binding_name, std::vector<ITexture*>>(textures); }
-auto Bind(const std::string& bindingName, std::vector<ITexture*>& textures) { return Binding<null_fixed_string, std::vector<ITexture*>>(bindingName, textures); }
+auto Bind(const uint32_t& bindingKey, std::vector<ITexture*>& textures) { return Binding<null_fixed_string, std::vector<ITexture*>>(bindingKey, textures); }
 
 template<basic_fixed_string binding_name>
 auto Bind(IBuffer& buffer) { return Binding<binding_name, IBuffer>(buffer); }
-auto Bind(const std::string& bindingName, IBuffer& buffer) { return Binding<null_fixed_string, IBuffer>(bindingName, buffer); }
+auto Bind(const uint32_t& bindingKey, IBuffer& buffer) { return Binding<null_fixed_string, IBuffer>(bindingKey, buffer); }
 
 template<typename... BindingTs>
 struct BindingBlock
@@ -317,19 +317,19 @@ void bindResourceInternal(RenderResourceViewBindingHandle bindingHandles[], Bind
 }
 
 template<size_t Index, bool IsVariableStringBinding>
-struct RemapBindingKey
+struct RemapBindingHandle
 {
 	template<typename BindingT>
-	RemapBindingKey(uint32_t bindingKeys[], BindingT&& binding) {};
+	RemapBindingHandle(uint32_t bindingKeys[], BindingT&& binding) {};
 };
 
 template<size_t Index>
-struct RemapBindingKey<Index, true>
+struct RemapBindingHandle<Index, true>
 {
 	template<typename BindingT>
-	RemapBindingKey(uint32_t bindingKeys[], BindingT&& binding)
+	RemapBindingHandle(uint32_t bindingKeys[], BindingT&& binding)
 	{
-		bindingKeys[Index] = ::getBindingKey(binding._bindingName);
+		bindingKeys[Index] = binding._bindingKey;
 	};
 };
 
@@ -395,9 +395,9 @@ void bindResources(const ShaderResourceBindingMap& shaderResourceBindingMap, Bin
 
 	if constexpr (BindingMetaT::_isVariableStringBinding)
 	{
-		[] <std::size_t... TupleIndexPack, typename...  BindingInnerTs> (LocalBinder& localBinder, std::index_sequence<TupleIndexPack...>, BindingInnerTs&&... bindings) {
+		[&autoBindingDescription] <std::size_t... TupleIndexPack, typename...  BindingInnerTs> (LocalBinder& localBinder, std::index_sequence<TupleIndexPack...>, BindingInnerTs&&... bindings) {
 			auto internalCall = [&] <std::size_t TupleIndex> () {
-				RemapBindingKey<TupleIndex, BindingMeta<std::tuple_element_t<TupleIndex, FlattenTupleT>>::_isVariableStringBinding>(
+				RemapBindingHandle<TupleIndex, BindingMeta<std::tuple_element_t<TupleIndex, FlattenTupleT>>::_isVariableStringBinding>(
 					localBinder._bindingKeys, getBinding<TupleIndex>(std::forward<BindingInnerTs>(bindings)...) );
 			};
 			(internalCall.template operator()<TupleIndexPack>(), ...);
@@ -482,14 +482,14 @@ void constexpr_str_test()
 		Bind<"g_texB">(buf2),
 		Bind<"g_texC">(buf3));
 
-	std::string testName1 = "s_tex1";
+	uint32_t testName1 = ::getBindingKey("s_tex1");
 	bindResources(bindingMapA, // New combination in both Literals: <"g_texA", "g_texB", "g_texC", null_fixed_string> and ResourceT: <T, B, B, T>
 		Bind<"g_texA">(tex1),
 		Bind<"g_texB">(buf2),
 		Bind<"g_texC">(buf3),
 		Bind(testName1, tex1));
 
-	std::string testName2 = "s_tex2";
+	uint32_t testName2 = ::getBindingKey("s_tex2");
 	bindResources(bindingMapA, // Same as above but variable string binding name is different.
 		Bind<"g_texA">(tex1),
 		Bind<"g_texB">(buf2),
