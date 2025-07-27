@@ -516,6 +516,7 @@ struct ThreadGuard : protected TypeToGuard
 	friend WriteAccessor<TypeToGuard>;
 
 	using TypeToGuard::TypeToGuard;
+	using TypeToGuard::operator =;
 };
 
 template<typename TypeToGuard>

@@ -288,7 +288,8 @@ struct BindingMeta<BindingBlock<BindingTs...>>
 template<basic_fixed_string binding_name, typename ResourceT, typename... Args>
 void bindResourceInternal(RenderResourceViewBindingHandle& bindingKey, Binding<binding_name, ResourceT, Args...>&& binding)
 {
-	static_assert(false, "Not implemented for ResourceT");
+	// Note(jiman): #Trick. sizeof(T) == 0 is impossible, but it could be avoid from compile error except that this function is really instantiated by any resason.
+	static_assert(sizeof(ResourceT) == 0, "Not implemented for ResourceT");
 	// call a bind function for a specific type of a resource, passed by arg
 }
 
